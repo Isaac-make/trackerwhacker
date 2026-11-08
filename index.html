@@ -1049,7 +1049,8 @@ function render() {
   document.body.classList.toggle("ro-mode", ro && ui.view !== "settings");
   const [v, d] = VIEWS[ui.view];
   const note = ui.view === "settings" ? "" : ro ? `<div class="who-note"><b>Together:</b> ${HH.people.map(p => esc(p.name)).join(" + ")}, added up. Switch to one person at the top to change anything.</div>`
-    : `<div class="who-note">Showing <b>${esc(personName(ui.who))}'s</b> money. Changes are saved and shared automatically.</div>`;
+    : DEMO ? `<div class="who-note"><b>Demo mode.</b> Example numbers, nothing is saved. Reload the page to leave.</div>`
+    : HH.people.length < 2 ? "" : `<div class="who-note">Showing <b>${esc(personName(ui.who))}'s</b> money. Changes are saved and shared automatically.</div>`;
   $("#app").innerHTML = (tokenProblem && ui.view !== "settings" ? '<div class="banner"><span><b>Changes are not saving.</b> GitHub stopped accepting the access token. <a href="#settings" class="pos">Fix it in Settings</a>.</span></div>' : "") + note + v();
   if (ro) $("#app").querySelectorAll("input, select").forEach(el => { if (!["fWeekly", "fRate", "fMonthlyNum"].includes(el.id)) el.disabled = true; });
   renderWho();
@@ -1242,7 +1243,7 @@ async function decryptJSON(box, pass) {
 }
 
 /* ---------- GitHub storage ---------- */
-let TOKEN = "", PASS = "", CONFIG = null;
+let TOKEN = "", PASS = "", CONFIG = null, DEMO = false;
 const SHA = {}, SALT = {}, dirty = {};
 let flushTimer = null, flushing = false, pendingRender = false, tokenProblem = false;
 async function gh(path, opts = {}, token = TOKEN) {
@@ -1285,6 +1286,7 @@ function save() {
 }
 function saveHousehold() { dirty.__hh = true; cacheLocal(); setStatus("warn", "Saving…"); clearTimeout(flushTimer); flushTimer = setTimeout(flushAll, 600); }
 async function flushAll() {
+  if (DEMO) { Object.keys(dirty).forEach(k => dirty[k] = false); setStatus("warn", "Demo: changes aren't saved"); return; }
   if (flushing) { flushTimer = setTimeout(flushAll, 800); return; }
   flushing = true;
   try {
@@ -1302,6 +1304,7 @@ async function flushAll() {
   flushing = false;
 }
 async function pull() {
+  if (DEMO) return;
   if (!TOKEN || flushing || Object.values(dirty).some(Boolean)) return;
   let changed = false;
   try {
@@ -1407,6 +1410,7 @@ document.addEventListener("click", e => {
 /* ---------- live prices: prices.json is refreshed by a GitHub job every 30 minutes ---------- */
 let PRICES = null, liveBusy = false;
 async function loadPrices() {
+  if (DEMO) { const r = await fetch("prices.json?t=" + Date.now(), { cache: "no-store" }); PRICES = r.ok ? await r.json() : { quotes: {} }; return PRICES; }
   const f = await readFile(SITE_REPO, "prices.json");
   PRICES = f ? JSON.parse(f.text) : { quotes: {} };
   return PRICES;
@@ -1492,7 +1496,18 @@ function gateHTML(mode, err) {
     </form>
   </div>`;
 }
-function showGate(mode, err) { TOKEN = ""; renderWho(); $("#app").innerHTML = gateHTML(mode, err); }
+function showGate(mode, err) {
+  TOKEN = ""; renderWho(); $("#app").innerHTML = gateHTML(mode, err);
+  if (mode !== "loading") $("#app").insertAdjacentHTML("beforeend", `<div class="gate" style="margin-top:-24px;text-align:center"><button type="button" class="ghost" id="btnDemo" data-demo="1">Try it with example numbers (no login, nothing saved)</button></div>`);
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-demo]")) return;
+  DEMO = true; TOKEN = "demo"; PASS = "";
+  HH = { people: [{ id: "a", name: "Demo" }] }; P = { a: exampleState() };
+  ui.who = "a"; renderWho(); location.hash = "overview"; render();
+  setStatus("warn", "Demo: nothing is saved");
+  toast("Demo mode: play with anything. Reload the page to leave.");
+});
 async function unlock(pass, remember) {
   const token = await decryptJSON(CONFIG.token, pass);   // throws on a wrong passphrase
   PASS = pass; TOKEN = token;
