@@ -1,0 +1,32 @@
+name: Update prices
+
+on:
+  schedule:
+    - cron: "*/30 7-17 * * 1-5"   # every 30 minutes, weekdays, 7am–6pm UTC
+  workflow_dispatch:               # "Run workflow" button on the Actions tab
+  push:
+    paths:
+      - tickers.json               # fetch straight away when a new ticker is added
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/fetch-prices.mjs
+      - name: Save prices
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prices.json
+          git diff --cached --quiet || (git commit -m "Update prices" && git pull --rebase && git push)

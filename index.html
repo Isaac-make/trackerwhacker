@@ -1,0 +1,1653 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Trackerwhacker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* Layout: sticky top bar with tabs, one view at a time; cards in a responsive grid. Single dark look by choice: deep green-black with green for money in, red for money out. */
+:root {
+  color-scheme: dark;
+  --bg: #0b1310;
+  --surface: #121d18;
+  --surface-2: #182620;
+  --line: #24362d;
+  --fg: #e4eee8;
+  --muted: #8ea79a;
+  --green: #3ec27f;
+  --green-dim: #1d4a33;
+  --red: #ef5b52;
+  --red-dim: #4a1f1d;
+  --amber: #e6a63c;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px 0; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; letter-spacing: .02em; text-transform: uppercase; }
+.brand span { color: var(--green); }
+.status { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.ok .dot { background: var(--green); }
+.status.warn .dot { background: var(--amber); }
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; padding-block: 8px 0; scrollbar-width: none; }
+nav.tabs a { color: var(--muted); text-decoration: none; padding: 8px 14px; font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; letter-spacing: .04em; text-transform: uppercase; border-bottom: 3px solid transparent; white-space: nowrap; }
+nav.tabs a:hover { color: var(--fg); }
+nav.tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--green); }
+main { padding-block: 20px 60px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 1.6rem; letter-spacing: .02em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: .05em; text-transform: uppercase; margin: 0 0 12px; color: var(--fg); }
+.sub { color: var(--muted); font-size: .9rem; margin: 2px 0 0; }
+.view-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.grid { display: grid; gap: 16px; }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.span2 { grid-column: span 2; }
+@media (max-width: 900px) { .g4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .g3 { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 720px) { .g2 { grid-template-columns: minmax(0,1fr); } .span2 { grid-column: auto; } }
+@media (max-width: 420px) { .g4 { grid-template-columns: minmax(0,1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.kpi .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.kpi .value { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.kpi .note { font-size: .82rem; color: var(--muted); margin-top: 4px; }
+.pos { color: var(--green); } .neg { color: var(--red); } .warn-t { color: var(--amber); }
+.chart-box { position: relative; height: 260px; }
+.chart-box.tall { height: 320px; }
+.chart-box.short { height: 220px; }
+.banner { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--surface-2); border: 1px dashed var(--amber); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: .9rem; }
+.banner b { color: var(--amber); }
+button, .btn { font: inherit; font-weight: 600; font-size: .9rem; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--green); border-color: var(--green); color: #06130c; }
+button.primary:hover { filter: brightness(1.1); }
+button.danger { color: var(--red); }
+button.ghost { background: transparent; }
+button.small { padding: 4px 10px; font-size: .8rem; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; min-width: 0; width: 100%; font-variant-numeric: tabular-nums; }
+input:hover, select:hover { border-color: var(--muted); }
+label.f { display: grid; gap: 4px; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; min-width: 0; }
+.money { position: relative; }
+.money::before { content: "£"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.money input { padding-left: 22px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1 1 120px; }
+.row > button { flex: 0 0 auto; }
+.month-nav { display: flex; align-items: center; gap: 8px; }
+.month-nav .m { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; min-width: 150px; text-align: center; text-transform: uppercase; letter-spacing: .03em; }
+.cat-list { display: grid; gap: 10px; }
+.cat { display: grid; grid-template-columns: 14px minmax(0, 1.4fr) minmax(90px, 1fr) minmax(90px, 1fr) 28px; gap: 10px; align-items: center; }
+.cat .sw { width: 12px; height: 12px; border-radius: 3px; }
+.cat .name { font-weight: 600; overflow-wrap: anywhere; }
+.cat .name small { display: block; color: var(--muted); font-weight: 400; font-size: .78rem; }
+.cat .bar { grid-column: 2 / 5; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: -4px; }
+.cat .bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; }
+.cat .bar.warn i { background: var(--amber); }
+.cat .bar.over i { background: var(--red); }
+.cat-head { display: grid; grid-template-columns: 14px minmax(0, 1.4fr) minmax(90px, 1fr) minmax(90px, 1fr) 28px; gap: 10px; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+@media (max-width: 520px) {
+  .cat, .cat-head { grid-template-columns: 12px minmax(0,1fr) 88px 80px 24px; gap: 6px; }
+}
+.x { background: none; border: none; color: var(--muted); padding: 2px 6px; font-size: 1rem; cursor: pointer; }
+.x:hover { color: var(--red); }
+.x.confirm { color: var(--red); font-size: .72rem; font-weight: 700; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
+th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.r, th.r { text-align: right; }
+.scroll-y { max-height: 320px; overflow-y: auto; }
+.pill { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+.pill.g { background: var(--green-dim); color: var(--green); }
+.pill.r { background: var(--red-dim); color: var(--red); }
+.pill.a { background: #4a3a1a; color: var(--amber); }
+.meter { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; margin: 8px 0 4px; }
+.meter i { display: block; height: 100%; background: var(--green); }
+.meter.over i { background: var(--red); }
+.legend-list { display: grid; gap: 6px; margin-top: 10px; font-size: .85rem; }
+.legend-list div { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.legend-list span.k { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.legend-list .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.legend-list b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.disclaimer { font-size: .8rem; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; margin-top: 12px; }
+.ring { display: flex; align-items: center; gap: 16px; }
+.ring svg { flex: none; }
+.empty { color: var(--muted); font-size: .9rem; padding: 20px 0; text-align: center; }
+.stack { display: grid; gap: 12px; }
+.hint { font-size: .82rem; color: var(--muted); }
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input[type=range] { padding: 0; accent-color: var(--green); border: none; background: transparent; }
+.range-row output { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 64px; text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; background: transparent; color: var(--muted); padding: 6px 12px; }
+.seg button[aria-pressed="true"] { background: var(--green-dim); color: var(--green); }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pill.b { background: #1b3346; color: #6db8ea; }
+.pill.n { background: var(--surface-2); color: var(--muted); }
+.pot-facts { display: grid; gap: 2px; margin-top: 10px; font-size: .88rem; }
+.pot-facts b { font-variant-numeric: tabular-nums; }
+details.more { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+details.more summary { cursor: pointer; color: var(--muted); font-size: .85rem; font-weight: 600; }
+details.more summary:hover { color: var(--fg); }
+details.more[open] summary { margin-bottom: 10px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--fg); }
+.check input { width: auto; accent-color: var(--green); }
+.ro { opacity: .75; cursor: not-allowed; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--line); padding: 8px 16px; border-radius: 8px; font-size: .88rem; z-index: 20; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+.top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+/* Phones: the header scrolls away with the page instead of covering it */
+@media (max-width: 720px) {
+  header.top { position: static; }
+  .brand { font-size: 1.25rem; }
+  .topbar { padding-block: 10px 0; gap: 8px; }
+  .top-right { width: 100%; justify-content: space-between; }
+  .top-right .seg button { padding: 6px 10px; }
+  nav.tabs a { padding: 8px 10px; font-size: .95rem; }
+}
+.gear { color: var(--muted); text-decoration: none; font-size: .85rem; font-weight: 600; }
+.gear:hover { color: var(--fg); }
+.gate { max-width: 520px; margin: 40px auto; }
+.who-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: .9rem; }
+.ro-mode main form, .ro-mode main details.more, .ro-mode main .x, .ro-mode main [data-act], .ro-mode main [data-live], .ro-mode main [data-repeat], .ro-mode main .hint.live-hint { display: none !important; }
+label.btn { display: inline-flex; align-items: center; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">Tracker<span>whacker</span></div>
+      <div class="top-right">
+        <div class="seg" id="whoSeg" role="group" aria-label="Whose money" hidden></div>
+        <a href="#settings" class="gear" id="gearLink" hidden>Settings</a>
+        <div class="status" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a href="#overview" data-view="overview">Overview</a>
+      <a href="#month" data-view="month">Monthly</a>
+      <a href="#wealth" data-view="wealth">Savings &amp; Bonds</a>
+      <a href="#sp500" data-view="sp500">S&amp;P &amp; Gold</a>
+      <a href="#gifts" data-view="gifts">Presents</a>
+      <a href="#progress" data-view="progress">Progress</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="app"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+"use strict";
+
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = v => { const n = parseFloat(String(v).replace(/[£,%\s]/g, "")); return isFinite(n) ? n : 0; };
+const gbp = (n, dp = 2) => (n < 0 ? "−£" : "£") + Math.abs(n).toLocaleString("en-GB", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const gbp0 = n => gbp(n, 0);
+const pct = n => (n >= 0 ? "+" : "−") + Math.abs(n).toFixed(1) + "%";
+const uid = () => Math.random().toString(36).slice(2, 9);
+const pad = n => String(n).padStart(2, "0");
+const isoDate = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const todayISO = () => isoDate(new Date());
+const monthKey = d => (typeof d === "string" ? d.slice(0, 7) : d.getFullYear() + "-" + pad(d.getMonth() + 1));
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const monthLabel = (k, long) => { const [y, m] = k.split("-").map(Number); return (long ? ["January","February","March","April","May","June","July","August","September","October","November","December"][m-1] : MONTHS[m-1]) + " " + (long ? y : String(y).slice(2)); };
+const shiftMonth = (k, n) => { const [y, m] = k.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return monthKey(d); };
+const monthEnd = k => { const [y, m] = k.split("-").map(Number); return isoDate(new Date(y, m, 0)); };
+const shortDate = s => { const [y, m, d] = s.split("-").map(Number); return d + " " + MONTHS[m-1] + " " + String(y).slice(2); };
+const addMonthsISO = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return isoDate(new Date(y, m - 1 + n, d)); };
+const daysUntil = iso => { const a = new Date(todayISO() + "T00:00:00"), b = new Date(iso + "T00:00:00"); return Math.round((b - a) / 864e5); };
+const monthsBetween = (fromIso, toIso) => { const [y1, m1] = fromIso.split("-").map(Number), [y2, m2] = toIso.split("-").map(Number); return (y2 - y1) * 12 + (m2 - m1); };
+const PALETTE = ["#3ec27f","#ef5b52","#e6a63c","#4fa3d9","#b07fe0","#2fc4b2","#f07a9a","#9cc34a","#d98a4f","#7c8cf0","#c9b458","#5fd4e6","#e07fc8","#8fbf9f"];
+const POT_PALETTE = ["#3ec27f","#9cc34a","#4fa3d9","#b07fe0","#2fc4b2","#7c8cf0","#d98a4f","#e07fc8","#c9b458"];
+const TYPES = {
+  savings: { label: "Savings", color: "#3ec27f" },
+  regular: { label: "Regular saver", color: "#9cc34a" },
+  bonds: { label: "Bonds", color: "#4fa3d9" },
+  other: { label: "Other investments", color: "#b07fe0" }
+};
+const PLAN_DEFAULT = () => ({ monthly: 700, start: shiftMonth(monthKey(new Date()), -5), startValue: "", growth: 4 });
+const CASH_COL = "#5fd4e6";
+const HOLD_PALETTE = ["#f08a4b", "#f5d061", "#e07fc8", "#7c8cf0", "#2fc4b2", "#c9b458"];
+const sglnBlank = () => ({ id: "sgln", name: "iShares Physical Gold (SGLN)", short: "Gold (SGLN)", ticker: "SGLN.L", color: "#f5d061", buys: [], currentPrice: 0, priceDate: todayISO() });
+
+/* ---------- example data ---------- */
+function baseCategories() {
+  return [
+    { id: "fuel", name: "Fuel", budget: 180 },
+    { id: "food", name: "Food shop", budget: 250 },
+    { id: "eatout", name: "Eating out", budget: 120 },
+    { id: "bday", name: "Birthday presents", budget: 40, linked: "birthday" },
+    { id: "xmas", name: "Christmas presents", budget: 60, linked: "christmas" },
+    { id: "cartax", name: "Car tax", budget: 16, fixed: true },
+    { id: "carins", name: "Car insurance", budget: 58, fixed: true },
+    { id: "wifi", name: "WiFi", budget: 32, fixed: true },
+    { id: "phone", name: "Phone bill", budget: 25, fixed: true }
+  ];
+}
+function exampleState() {
+  const months = {};
+  const now = monthKey(new Date());
+  const plan = [
+    // [base, op, other, saved, fuel, food, eatout]
+    [2380, 0,   0,  400, 168, 241, 96],
+    [2380, 0,  45,  450, 191, 262, 134],
+    [2380, 690, 0,  900, 42,  88,  38],
+    [2380, 740, 0,  950, 35,  92,  22],
+    [2380, 720, 0,  900, 48,  95,  41],
+    [2380, 0,   0,  450, 112, 154, 61]
+  ];
+  plan.forEach((p, i) => {
+    const k = shiftMonth(now, i - 5);
+    months[k] = { income: { base: p[0], op: p[1], other: p[2] }, saved: p[3],
+      spend: { fuel: p[4], food: p[5], eatout: p[6], cartax: 15.75, carins: 57.4, wifi: 32, phone: 24.5 } };
+  });
+  const endOf = i => { const e = monthEnd(shiftMonth(now, i - 5)); return e > todayISO() ? todayISO() : e; };
+  const grow = (start, step) => Array.from({ length: 6 }, (_, i) => ({ date: endOf(i), value: Math.round(start + step * i + (i >= 2 ? step * 0.6 * Math.min(i - 1, 3) : 0)) }));
+  const regStart = shiftMonth(now, -5) + "-01";
+  const fixStart = monthEnd(shiftMonth(now, -4));
+  // weekly S&P buys over ~22 weeks with a gentle random walk on price
+  const buys = []; let price = 101.4; const start = new Date(); start.setDate(start.getDate() - 7 * 22);
+  const wiggle = [0.6,-0.4,1.1,0.3,-1.2,0.8,0.5,-0.2,1.4,-0.9,0.7,0.2,-1.6,-0.5,1.0,1.3,0.4,-0.3,0.9,0.6,-0.7,0.8];
+  for (let i = 0; i < 22; i++) { const d = new Date(start); d.setDate(d.getDate() + 7 * i); price = +(price + wiggle[i]).toFixed(2); buys.push({ id: uid(), date: isoDate(d), amount: i >= 8 && i < 20 ? 75 : 50, price, fromCash: true }); }
+  // fortnightly gold buys over ~20 weeks
+  const gold = []; let gp = 52.6; const gw = [0.8, -0.5, 1.4, 0.9, -1.1, 1.6, 0.4, -0.3, 1.2, 0.7];
+  for (let i = 0; i < 10; i++) { const d = new Date(start); d.setDate(d.getDate() + 14 + 14 * i); gp = +(gp + gw[i]).toFixed(2); gold.push({ id: uid(), date: isoDate(d), amount: 25, price: gp, fromCash: true }); }
+  const yr = new Date().getFullYear();
+  return {
+    v: 1, example: true,
+    categories: baseCategories(), months,
+    pots: [
+      { id: uid(), name: "Easy-access saver", type: "savings", rate: 4.1, fixedUntil: "", history: grow(3000, 260) },
+      { id: uid(), name: "Regular saver", type: "regular", rate: 8, monthly: 200, start: regStart, term: 12,
+        history: Array.from({ length: 6 }, (_, i) => ({ date: endOf(i), value: Math.round(200 * (i + 1) * (1 + 0.08 * i / 24)) })) },
+      { id: uid(), name: "1-year fixed bond", type: "bonds", rate: 4.6, fixedUntil: addMonthsISO(fixStart, 12), history: [{ date: fixStart, value: 2000 }] },
+      { id: uid(), name: "Premium Bonds", type: "bonds", rate: 3.6, fixedUntil: "", history: grow(500, 100) },
+      { id: uid(), name: "Stocks & shares ISA", type: "other", rate: 0, fixedUntil: "", history: grow(2600, 85) }
+    ],
+    goal: { name: "House deposit", target: 20000 },
+    sp: { holdings: [
+        { id: "sp500", name: "Vanguard S&P 500 UCITS ETF (VUSA, Dist)", short: "S&P 500 (VUSA)", ticker: "VUSA.L", color: "#f08a4b", buys, currentPrice: +(price + 0.9).toFixed(2), priceDate: todayISO() },
+        { ...sglnBlank(), buys: gold, currentPrice: +(gp + 0.6).toFixed(2) }
+      ],
+      cash: { rate: 3.75, history: [{ date: endOf(3), value: 180 }, { date: todayISO(), value: 95.4 }] } },
+    forecast: { years: 10, monthly: 500, rate: 7 },
+    plan: PLAN_DEFAULT(),
+    gifts: [
+      { id: uid(), name: "Mum", type: "birthday", date: yr + "-08-14", budget: 50, spent: 60, bought: shiftMonth(now, -3) + "-08" },
+      { id: uid(), name: "Jack", type: "birthday", date: yr + "-07-02", budget: 30, spent: 35, bought: shiftMonth(now, -4) + "-01" },
+      { id: uid(), name: "Dad", type: "birthday", date: yr + "-12-19", budget: 40, spent: 0, bought: "" },
+      { id: uid(), name: "Mum & Dad", type: "christmas", date: yr + "-12-25", budget: 80, spent: 45, bought: shiftMonth(now, -1) + "-18" },
+      { id: uid(), name: "Sister", type: "christmas", date: yr + "-12-25", budget: 40, spent: 25, bought: now + "-01" },
+      { id: uid(), name: "Mates (secret santa)", type: "christmas", date: yr + "-12-25", budget: 20, spent: 0, bought: "" }
+    ]
+  };
+}
+function blankState() {
+  return {
+    v: 1, example: false,
+    categories: baseCategories(), months: {}, pots: [],
+    goal: { name: "Savings goal", target: 10000 },
+    sp: { holdings: [{ id: "sp500", name: "Vanguard S&P 500 UCITS ETF (VUSA, Dist)", short: "S&P 500 (VUSA)", ticker: "VUSA.L", color: "#f08a4b", buys: [], currentPrice: 0, priceDate: todayISO() }, sglnBlank()], cash: { rate: 0, history: [] } },
+    forecast: { years: 10, monthly: 500, rate: 7 },
+    plan: PLAN_DEFAULT(),
+    gifts: []
+  };
+}
+// Bring older saved data up to the current shape
+function prepare(s) {
+  if (!s || s.v !== 1) return blankState();
+  if (!s.pots) {
+    s.pots = [];
+    const names = { savings: "Savings", bonds: "Bonds", other: "Other investments" };
+    Object.keys(names).forEach(k => { const h = s.accounts && s.accounts[k]; if (h && h.length) s.pots.push({ id: uid(), name: names[k], type: k, rate: 0, fixedUntil: "", history: h }); });
+    delete s.accounts;
+  }
+  (s.categories || []).forEach(c => { if (c.id === "bday" && !c.linked) c.linked = "birthday"; if (c.id === "xmas" && !c.linked) c.linked = "christmas"; });
+  (s.gifts || []).forEach(g => { if (num(g.spent) > 0 && !g.bought) g.bought = todayISO(); });
+  if (!s.sp.cash) s.sp.cash = { rate: 0, history: [] };
+  if (!s.sp.holdings) {
+    s.sp.holdings = [{ id: "sp500", name: "Vanguard S&P 500 UCITS ETF (VUSA, Dist)", short: "S&P 500", ticker: "VUSA.L", color: "#f08a4b", buys: s.sp.buys || [], currentPrice: s.sp.currentPrice || 0, priceDate: s.sp.priceDate || todayISO() }, sglnBlank()];
+    delete s.sp.buys; delete s.sp.currentPrice; delete s.sp.priceDate; delete s.sp.fund;
+  }
+  if (!s.plan) s.plan = { ...PLAN_DEFAULT(), start: Object.keys(s.months || {}).sort()[0] || monthKey(new Date()) };
+  s.sp.holdings.forEach(h => { if (h.id === "sp500" && h.name === "S&P 500 fund (GBP)") { h.name = "Vanguard S&P 500 UCITS ETF (VUSA, Dist)"; h.short = "S&P 500 (VUSA)"; } });
+  s.sp.holdings.forEach(h => { if (h.ticker === undefined) h.ticker = h.id === "sp500" ? "VUSA.L" : h.id === "sgln" ? "SGLN.L" : ""; });
+  return s;
+}
+
+/* ---------- state & storage ---------- */
+// GitHub locations. The site lives in SITE_REPO (public); the encrypted data lives in DATA_REPO (private).
+const OWNER = "Isaac-make", SITE_REPO = "trackerwhacker", DATA_REPO = "trackerwhacker";
+let HH = { people: [] };     // the household: who's in it
+let P = {};                  // each person's own tracker, by person id
+let state = blankState();    // what the views are showing right now
+let ui = { view: "overview", month: monthKey(new Date()), open: new Set(), hold: "sp500", who: lsGet("tw-who") || "", live: {} };
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+function setStatus(kind, text) { const s = $("#status"); if (!s) return; s.className = "status " + kind; $("#statusText").textContent = text; }
+
+/* ---------- calculations ---------- */
+const monthData = k => state.months[k] || { income: { base: 0, op: 0, other: 0 }, saved: 0, spend: {} };
+const ensureMonth = k => { if (!state.months[k]) state.months[k] = { income: { base: 0, op: 0, other: 0 }, saved: 0, spend: {} }; return state.months[k]; };
+const incomeOf = m => num(m.income.base) + num(m.income.op) + num(m.income.other);
+const giftSpent = (type, k) => state.gifts.filter(g => g.type === type && g.bought && g.bought.startsWith(k)).reduce((t, g) => t + num(g.spent), 0);
+const catSpend = (c, k) => c.linked ? giftSpent(c.linked, k) : num(monthData(k).spend[c.id]);
+const spendOf = k => state.categories.reduce((t, c) => t + catSpend(c, k), 0);
+const catColor = (c, i) => c.color || PALETTE[i % PALETTE.length];
+const potColor = i => POT_PALETTE[i % POT_PALETTE.length];
+const latestAt = (list, date) => { let v = 0, best = ""; (list || []).forEach(e => { if (e.date <= date && e.date >= best) { best = e.date; v = num(e.value); } }); return v; };
+const endFor = k => k === monthKey(new Date()) ? todayISO() : monthEnd(k);
+function holdStats(h, upTo) {
+  const buys = [...h.buys].filter(b => !upTo || b.date <= upTo).sort((a, b) => a.date.localeCompare(b.date));
+  let shares = 0, paid = 0, lastPrice = 0;
+  buys.forEach(b => { if (num(b.price) > 0) { shares += num(b.amount) / num(b.price); lastPrice = num(b.price); } paid += num(b.amount); });
+  const price = num(h.currentPrice) || lastPrice;
+  return { buys, shares, paid, lastPrice, avg: shares ? paid / shares : 0, price, value: shares * price };
+}
+function spValueNow() {
+  const per = state.sp.holdings.map(h => ({ h, st: holdStats(h) }));
+  const value = per.reduce((t, x) => t + x.st.value, 0), paid = per.reduce((t, x) => t + x.st.paid, 0);
+  const buyCount = per.reduce((t, x) => t + x.st.buys.length, 0);
+  const cash = latestAt(state.sp.cash.history, todayISO());
+  return { per, value, paid, buyCount, cash, cashRate: num(state.sp.cash.rate), total: value + cash };
+}
+const potBalance = (p, date = todayISO()) => latestAt(p.history, date);
+function potInfo(p) {
+  const bal = potBalance(p), r = num(p.rate) / 100;
+  const info = { bal, yearly: bal * r, status: "easy", end: "", daysLeft: 0, atEnd: 0, paymentsLeft: 0 };
+  if (p.type === "regular" && p.start && num(p.term)) {
+    info.end = addMonthsISO(p.start, num(p.term));
+    info.daysLeft = daysUntil(info.end);
+    const made = Math.max(0, Math.min(num(p.term), monthsBetween(p.start, todayISO()) + 1));
+    info.paymentsLeft = Math.max(0, num(p.term) - made);
+    const mLeft = Math.max(0, monthsBetween(todayISO(), info.end));
+    let v = bal; const rm = r / 12;
+    for (let i = 1; i <= mLeft; i++) { v = v * (1 + rm) + (i <= info.paymentsLeft ? num(p.monthly) : 0); }
+    info.atEnd = v;
+    info.status = info.daysLeft > 0 ? "running" : "ended";
+  } else if (p.fixedUntil) {
+    info.end = p.fixedUntil; info.daysLeft = daysUntil(p.fixedUntil);
+    info.atEnd = bal * Math.pow(1 + r, Math.max(0, info.daysLeft) / 365);
+    info.status = info.daysLeft > 0 ? "locked" : "unlocked";
+  }
+  return info;
+}
+function wealthNow() {
+  const byType = { savings: 0, regular: 0, bonds: 0, other: 0 };
+  state.pots.forEach(p => { byType[p.type] = (byType[p.type] || 0) + potBalance(p); });
+  const sp = spValueNow();
+  const total = Object.values(byType).reduce((a, b) => a + b, 0) + sp.value + sp.cash;
+  return { byType, sp: sp.value, per: sp.per, cash: sp.cash, total };
+}
+function allMonthKeys() {
+  const keys = new Set(Object.keys(state.months));
+  state.pots.forEach(p => p.history.forEach(e => keys.add(monthKey(e.date))));
+  state.sp.holdings.forEach(h => h.buys.forEach(b => keys.add(monthKey(b.date))));
+  state.sp.cash.history.forEach(e => keys.add(monthKey(e.date)));
+  keys.add(monthKey(new Date()));
+  const sorted = [...keys].sort();
+  const out = []; let k = sorted[0]; const last = sorted[sorted.length - 1];
+  while (k <= last && out.length < 240) { out.push(k); k = shiftMonth(k, 1); }
+  return out;
+}
+function activityMonths() {
+  const keys = new Set(Object.keys(state.months));
+  state.gifts.forEach(g => { if (g.bought && num(g.spent)) keys.add(monthKey(g.bought)); });
+  return [...keys].sort();
+}
+function holdValueAt(h, k) { const s = holdStats(h, endFor(k)); const price = k === monthKey(new Date()) ? (num(h.currentPrice) || s.lastPrice) : s.lastPrice; return s.shares * price; }
+function spSharesAt(k) { return state.sp.holdings.reduce((t, h) => t + holdValueAt(h, k), 0); }
+function netWorthAt(k) {
+  const end = endFor(k);
+  return state.pots.reduce((t, p) => t + potBalance(p, end), 0) + spSharesAt(k) + latestAt(state.sp.cash.history, end);
+}
+
+/* ---------- charts ---------- */
+const charts = [];
+function killCharts() { while (charts.length) { try { charts.pop().destroy(); } catch (e) {} } }
+function mkChart(id, cfg) {
+  const el = document.getElementById(id); if (!el) return;
+  if (!window.Chart) { el.parentElement.innerHTML = '<div class="empty">Charts could not load. Check your connection and reload.</div>'; return; }
+  const c = new Chart(el, cfg); charts.push(c); return c;
+}
+// Draws the % share on each pie / doughnut slice
+const slicePct = {
+  id: "slicePct",
+  afterDatasetsDraw(chart) {
+    if (chart.config.type !== "pie" && chart.config.type !== "doughnut") return;
+    const ds = chart.data.datasets[0]; if (!ds) return;
+    const meta = chart.getDatasetMeta(0);
+    const total = ds.data.reduce((a, b, i) => a + (chart.getDataVisibility(i) ? b : 0), 0);
+    if (!total) return;
+    const ctx = chart.ctx; ctx.save();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "700 12px Barlow, system-ui, sans-serif";
+    meta.data.forEach((arc, i) => {
+      if (!chart.getDataVisibility(i)) return;
+      const p = ds.data[i] / total * 100;
+      if (p < 4) return;
+      const pos = arc.tooltipPosition();
+      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(6,19,12,.55)"; ctx.fillStyle = "#ffffff";
+      const t = Math.round(p) + "%";
+      ctx.strokeText(t, pos.x, pos.y); ctx.fillText(t, pos.x, pos.y);
+    });
+    ctx.restore();
+  }
+};
+if (window.Chart) {
+  Chart.register(slicePct);
+  Chart.defaults.color = "#8ea79a";
+  Chart.defaults.borderColor = "#24362d";
+  Chart.defaults.font.family = 'Barlow, system-ui, sans-serif';
+  Chart.defaults.font.size = 12;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.boxHeight = 10;
+  Chart.defaults.plugins.tooltip.backgroundColor = "#182620";
+  Chart.defaults.plugins.tooltip.borderColor = "#24362d";
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.titleColor = "#e4eee8";
+  Chart.defaults.plugins.tooltip.bodyColor = "#e4eee8";
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.animation.duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 400;
+}
+const moneyTick = { callback: v => "£" + Number(v).toLocaleString("en-GB", { maximumFractionDigits: 0 }) };
+const moneyTip = { callbacks: { label: ctx => " " + (ctx.dataset.label ? ctx.dataset.label + ": " : "") + gbp(ctx.parsed.y) } };
+const pieTip = { callbacks: { label: ctx => { const t = ctx.dataset.data.reduce((a, b) => a + b, 0); return " " + ctx.label + ": " + gbp(ctx.parsed) + " (" + (t ? (ctx.parsed / t * 100).toFixed(1) : 0) + "%)"; } } };
+// Legend entries that read "Fuel · 23%"
+const pctLegend = {
+  position: "right",
+  labels: {
+    generateLabels(chart) {
+      const base = Chart.overrides[chart.config.type].plugins.legend.labels.generateLabels(chart);
+      const d = chart.data.datasets[0].data, t = d.reduce((a, b) => a + b, 0);
+      base.forEach((l, i) => { l.text = l.text + "  " + (t ? Math.round(d[i] / t * 100) : 0) + "%"; });
+      return base;
+    }
+  }
+};
+function pieChart(id, labels, values, colors, cutout) {
+  return mkChart(id, { type: cutout ? "doughnut" : "pie", data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: "#121d18", borderWidth: 2 }] }, options: { cutout: cutout || 0, plugins: { legend: pctLegend, tooltip: pieTip } } });
+}
+
+/* ---------- views ---------- */
+function exampleBanner() {
+  if (!state.example) return "";
+  return `<div class="banner"><span><b>Example numbers.</b> These are made up so you can see how it works. Clear them when you're ready to put your own in.</span>
+  <span class="row" style="flex:0 0 auto"><button class="small" data-act="clear-example" id="btnClear">Clear and start fresh</button></span></div>`;
+}
+
+function viewOverview() {
+  const k = monthKey(new Date());
+  const m = monthData(k);
+  const inc = incomeOf(m), sp = spendOf(k), saved = num(m.saved), left = inc - sp - saved;
+  const w = wealthNow();
+  const keys = allMonthKeys();
+  const prevNW = keys.length > 1 ? netWorthAt(keys[keys.length - 2]) : 0;
+  const nwChange = w.total - prevNW;
+  const interest = state.pots.reduce((t, p) => t + potInfo(p).yearly, 0) + w.cash * num(state.sp.cash.rate) / 100;
+  let opTotal = 0, opMonths = 0, opSaved = 0;
+  Object.values(state.months).forEach(mm => { const o = num(mm.income.op); if (o > 0) { opTotal += o; opMonths++; opSaved += num(mm.saved); } });
+  const opPct = opTotal ? Math.min(100, opSaved / opTotal * 100) : 0;
+
+  return `${exampleBanner()}
+  <div class="view-head"><div><h2>${monthLabel(k, true)}</h2><p class="sub">Where you stand this month and overall.</p></div>
+  <button data-go="month" id="btnGoMonth">Update this month</button></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Net worth</div><div class="value">${gbp0(w.total)}</div><div class="note ${nwChange >= 0 ? "pos" : "neg"}">${nwChange >= 0 ? "▲" : "▼"} ${gbp0(Math.abs(nwChange))} since last month</div>${(() => { const ps = planSeries(); const d = ps.act[ps.act.length - 1] - ps.exp[ps.exp.length - 1]; return `<div class="note"><a href="#progress" class="${d >= 0 ? "pos" : "neg"}">${gbp0(Math.abs(d))} ${d >= 0 ? "ahead of" : "behind"} plan</a></div>`; })()}</div>
+    <div class="card kpi"><div class="label">Profits this month</div><div class="value pos">${gbp0(inc)}</div><div class="note">${num(m.income.op) ? "Includes " + gbp0(num(m.income.op)) + " side profits" : "Main profits " + gbp0(num(m.income.base))}</div></div>
+    <div class="card kpi"><div class="label">Spending this month</div><div class="value neg">${gbp0(sp)}</div><div class="note">${inc ? (sp / inc * 100).toFixed(0) + "% of profits" : "No profits entered yet"}</div></div>
+    <div class="card kpi"><div class="label">Left over</div><div class="value ${left >= 0 ? "pos" : "neg"}">${gbp0(left)}</div><div class="note">After ${gbp0(saved)} saved or invested</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Where this month's money went</h3>${sp ? '<div class="chart-box"><canvas id="cSpendPie" aria-label="Spending by category this month"></canvas></div>' : '<div class="empty">No spending entered for this month yet.</div>'}</div>
+    <div class="card"><h3>What you've got</h3>${w.total ? '<div class="chart-box"><canvas id="cWealthPie" aria-label="Wealth split"></canvas></div>' : '<div class="empty">Add pots on the Savings &amp; Bonds tab.</div>'}
+      ${interest ? `<p class="hint" style="margin:8px 0 0">Your money earns about <b class="pos">${gbp0(interest)} a year</b> in interest (${gbp(interest / 12)} a month).</p>` : ""}</div>
+    <div class="card span2"><h3>Net worth over time</h3><div class="chart-box"><canvas id="cNetWorth" aria-label="Net worth by month"></canvas></div></div>
+    <div class="card span2"><h3>Profits vs spending</h3><div class="chart-box"><canvas id="cIncSpend" aria-label="Income and spending by month"></canvas></div></div>
+  </div>`;
+}
+function drawOverview() {
+  const k = monthKey(new Date());
+  const cats = state.categories.map((c, i) => ({ c, v: catSpend(c, k), col: catColor(c, i) })).filter(x => x.v > 0);
+  pieChart("cSpendPie", cats.map(x => x.c.name), cats.map(x => x.v), cats.map(x => x.col));
+  const w = wealthNow();
+  const parts = [...Object.entries(TYPES).map(([t, d]) => [d.label, w.byType[t] || 0, d.color]), ...w.per.map(({ h, st }) => [h.short || h.name, st.value, h.color]), ["Cash to invest", w.cash, CASH_COL]].filter(p => p[1] > 0);
+  pieChart("cWealthPie", parts.map(p => p[0]), parts.map(p => p[1]), parts.map(p => p[2]), "58%");
+  const keys = allMonthKeys().slice(-24);
+  mkChart("cNetWorth", { type: "line", data: { labels: keys.map(k => monthLabel(k)), datasets: [{ label: "Net worth", data: keys.map(netWorthAt), borderColor: "#3ec27f", backgroundColor: "rgba(62,194,127,.12)", fill: true, tension: .3, pointRadius: 3, pointBackgroundColor: "#3ec27f" }] }, options: { plugins: { legend: { display: false }, tooltip: moneyTip }, scales: { y: { ticks: moneyTick, beginAtZero: false }, x: { grid: { display: false } } } } });
+  const mk = activityMonths().slice(-12);
+  mkChart("cIncSpend", { type: "bar", data: { labels: mk.map(k => monthLabel(k)), datasets: [
+    { label: "Main & other profits", data: mk.map(k => num(monthData(k).income.base) + num(monthData(k).income.other)), backgroundColor: "#2e8f5e", stack: "in", borderRadius: 3 },
+    { label: "Side profits", data: mk.map(k => num(monthData(k).income.op)), backgroundColor: "#5fe0a0", stack: "in", borderRadius: 3 },
+    { label: "Spending", data: mk.map(spendOf), backgroundColor: "#ef5b52", stack: "out", borderRadius: 3 },
+    { label: "Saved / invested", data: mk.map(k => num(monthData(k).saved)), backgroundColor: "#e6a63c", stack: "out", borderRadius: 3 }
+  ] }, options: { plugins: { tooltip: moneyTip }, scales: { y: { stacked: true, ticks: moneyTick }, x: { stacked: true, grid: { display: false } } } } });
+}
+
+function viewMonth() {
+  const k = ui.month, m = monthData(k);
+  const inc = incomeOf(m), sp = spendOf(k), saved = num(m.saved), left = inc - sp - saved;
+  const totalBudget = state.categories.reduce((t, c) => t + num(c.budget), 0);
+  const rows = state.categories.map((c, i) => {
+    const v = catSpend(c, k), b = num(c.budget), p = b ? v / b * 100 : 0;
+    const cls = !b ? "" : p > 100 ? "over" : p >= 80 ? "warn" : "";
+    const status = b ? (p > 100 ? `<span class="neg">${gbp(v - b)} over</span>` : gbp(b - v) + " left of " + gbp0(b)) : "No limit set";
+    return `<div class="cat">
+      <span class="sw" style="background:${catColor(c, i)}"></span>
+      <span class="name">${esc(c.name)}<small>${status}${c.fixed ? " · bill" : ""}${c.linked ? ' · <a href="#gifts" class="pos">from Presents</a>' : ""}</small></span>
+      <span class="money"><input id="sp-${c.id}" inputmode="decimal" ${c.linked ? 'readonly class="ro" title="Worked out from the Presents tab"' : `data-spend="${c.id}"`} value="${v ? v.toFixed(2) : ""}" placeholder="0.00" aria-label="${esc(c.name)} spent"></span>
+      <span class="money"><input id="bg-${c.id}" inputmode="decimal" data-budget="${c.id}" value="${b ? b : ""}" placeholder="limit" aria-label="${esc(c.name)} monthly limit"></span>
+      <button class="x" data-delcat="${c.id}" id="del-${c.id}" aria-label="Remove ${esc(c.name)}" title="Remove category">×</button>
+      ${b ? `<span class="bar ${cls}"><i style="width:${Math.min(100, p)}%"></i></span>` : ""}
+    </div>`;
+  }).join("");
+  const prev = state.months[shiftMonth(k, -1)];
+  return `${exampleBanner()}
+  <div class="view-head">
+    <div class="month-nav"><button class="ghost" data-mnav="-1" id="mPrev" aria-label="Previous month">◀</button><span class="m">${monthLabel(k, true)}</span><button class="ghost" data-mnav="1" id="mNext" aria-label="Next month">▶</button></div>
+    <div class="row" style="flex:0 0 auto">${prev ? '<button id="btnCopyBills" data-act="copy-bills">Copy bills from last month</button>' : ""}</div>
+  </div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Profits</div><div class="value pos">${gbp0(inc)}</div></div>
+    <div class="card kpi"><div class="label">Spending</div><div class="value neg">${gbp0(sp)}</div><div class="note">${totalBudget ? "Limits add up to " + gbp0(totalBudget) : ""}</div></div>
+    <div class="card kpi"><div class="label">Saved / invested</div><div class="value">${gbp0(saved)}</div></div>
+    <div class="card kpi"><div class="label">Left over</div><div class="value ${left >= 0 ? "pos" : "neg"}">${gbp0(left)}</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="stack">
+      <div class="card"><h3>Profits in</h3>
+        <div class="row">
+          <label class="f">Main profits / pay<span class="money"><input id="inc-base" inputmode="decimal" data-inc="base" value="${num(m.income.base) || ""}" placeholder="0.00"></span></label>
+          <label class="f">Side profits<span class="money"><input id="inc-op" inputmode="decimal" data-inc="op" value="${num(m.income.op) || ""}" placeholder="0.00"></span></label>
+          <label class="f">Other profits<span class="money"><input id="inc-other" inputmode="decimal" data-inc="other" value="${num(m.income.other) || ""}" placeholder="0.00"></span></label>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <label class="f">Moved to savings or investments<span class="money"><input id="inc-saved" inputmode="decimal" data-saved="1" value="${saved || ""}" placeholder="0.00"></span></label>
+          <label class="f">Planned to save<span class="money"><input id="inc-planned" inputmode="decimal" data-planned="1" value="${m.planned !== undefined && m.planned !== "" ? num(m.planned) : ""}" placeholder="${num(state.plan.monthly)} (plan)"></span></label>
+        </div>
+        ${(() => { const pl = plannedFor(k); return pl ? `<p class="hint" style="margin-bottom:0">${saved >= pl ? `<span class="pos">Hit your plan of ${gbp0(pl)}</span>` : `<span class="warn-t">${gbp0(pl - saved)} short of your plan of ${gbp0(pl)}</span>`} this month.</p>` : ""; })()}
+      </div>
+      <div class="card"><h3>Spending split</h3>${sp ? '<div class="chart-box short"><canvas id="cMonthPie"></canvas></div>' : '<div class="empty">Fill in what you spent and the chart appears here.</div>'}</div>
+    </div>
+    <div class="card"><h3>Money out</h3>
+      <div class="cat-head"><span></span><span>Category</span><span>Spent</span><span>Monthly limit</span><span></span></div>
+      <div class="cat-list" style="margin-top:8px">${rows}</div>
+      <form id="addCat" class="row" style="margin-top:16px; border-top:1px solid var(--line); padding-top:14px">
+        <label class="f">New category<input id="newCatName" placeholder="e.g. Gym, Rent, Subscriptions" maxlength="40"></label>
+        <label class="f" style="flex:0 1 120px">Monthly limit<span class="money"><input id="newCatBudget" inputmode="decimal" placeholder="optional"></span></label>
+        <button class="primary" type="submit" id="btnAddCat">Add</button>
+      </form>
+      <p class="hint">Presents fill in by themselves from the Presents tab, in the month you bought them. Limit bars turn amber at 80% and red once you go over.</p>
+    </div>
+  </div>`;
+}
+function drawMonth() {
+  const cats = state.categories.map((c, i) => ({ c, v: catSpend(c, ui.month), col: catColor(c, i) })).filter(x => x.v > 0);
+  pieChart("cMonthPie", cats.map(x => x.c.name), cats.map(x => x.v), cats.map(x => x.col), "52%");
+}
+
+/* ----- Savings & Bonds ----- */
+function potCard(p, i) {
+  const t = TYPES[p.type] || TYPES.savings;
+  const info = potInfo(p);
+  const list = [...p.history].sort((a, b) => b.date.localeCompare(a.date));
+  const prev = list[1] ? num(list[1].value) : null, ch = prev === null ? 0 : info.bal - prev;
+  const pills = [];
+  pills.push(num(p.rate) ? `<span class="pill g">${num(p.rate)}% interest</span>` : `<span class="pill n">No rate set</span>`);
+  if (info.status === "locked") pills.push(`<span class="pill a">Locked until ${shortDate(info.end)}</span>`, `<span class="pill n">${info.daysLeft} days left</span>`);
+  else if (info.status === "unlocked") pills.push(`<span class="pill r">Fix ended ${shortDate(info.end)}</span>`);
+  else if (info.status === "running") pills.push(`<span class="pill b">${gbp0(num(p.monthly))} a month</span>`, `<span class="pill n">${info.paymentsLeft} of ${num(p.term)} payments left</span>`);
+  else if (info.status === "ended") pills.push(`<span class="pill r">Term ended ${shortDate(info.end)}</span>`);
+  else pills.push(`<span class="pill n">Easy access</span>`);
+  const facts = [];
+  if (info.yearly) facts.push(`Earns about <b class="pos">${gbp(info.yearly)}</b> a year (${gbp(info.yearly / 12)} a month)`);
+  if (info.status === "locked") facts.push(`≈ <b>${gbp0(info.atEnd)}</b> when it unlocks on ${shortDate(info.end)}`);
+  if (info.status === "running") facts.push(`≈ <b>${gbp0(info.atEnd)}</b> at the end on ${shortDate(info.end)} if you keep paying in`);
+  if (info.status === "unlocked" || info.status === "ended") facts.push(`<span class="warn-t">Time to move this or fix it again.</span>`);
+  const open = ui.open.has(p.id) ? " open" : "";
+  return `<div class="card">
+    <div class="kpi"><div class="label" style="color:${potColor(i)}">${t.label}</div>
+      <div style="font-weight:600; margin-top:2px">${esc(p.name)}</div>
+      <div class="value">${gbp0(info.bal)}</div>
+      <div class="note">${prev !== null ? `<span class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "▲" : "▼"} ${gbp0(Math.abs(ch))}</span> since ${shortDate(list[1].date)}` : list[0] ? "Balance on " + shortDate(list[0].date) : "No balance yet"}</div></div>
+    <div class="pills">${pills.join("")}</div>
+    ${facts.length ? `<div class="pot-facts">${facts.map(f => `<div>${f}</div>`).join("")}</div>` : ""}
+    <form class="row" data-potform="${p.id}" style="margin-top:12px">
+      <label class="f">Date<input type="date" id="pd-${p.id}" value="${todayISO()}" required></label>
+      <label class="f">Balance now<span class="money"><input id="pv-${p.id}" inputmode="decimal" placeholder="0.00" required></span></label>
+      <button class="primary" type="submit" id="pb-${p.id}">Update</button>
+    </form>
+    <details class="more" data-pot-details="${p.id}"${open}><summary>Rate, term and history</summary>
+      <div class="row">
+        <label class="f">Name<input id="pn-${p.id}" data-pot="${p.id}" data-pf="name" value="${esc(p.name)}" maxlength="40"></label>
+        <label class="f">Type<select id="pt-${p.id}" data-pot="${p.id}" data-pf="type">${Object.entries(TYPES).map(([k, d]) => `<option value="${k}"${p.type === k ? " selected" : ""}>${d.label}</option>`).join("")}</select></label>
+        <label class="f">Interest rate %<input id="pr-${p.id}" data-pot="${p.id}" data-pf="rate" inputmode="decimal" value="${num(p.rate) || ""}" placeholder="e.g. 4.5"></label>
+      </div>
+      ${p.type === "regular" ? `<div class="row" style="margin-top:10px">
+        <label class="f">Monthly payment<span class="money"><input id="pm-${p.id}" data-pot="${p.id}" data-pf="monthly" inputmode="decimal" value="${num(p.monthly) || ""}"></span></label>
+        <label class="f">Started<input type="date" id="ps-${p.id}" data-pot="${p.id}" data-pf="start" value="${p.start || ""}"></label>
+        <label class="f">Term (months)<input id="pterm-${p.id}" data-pot="${p.id}" data-pf="term" inputmode="numeric" value="${num(p.term) || ""}" placeholder="12"></label>
+      </div>` : `<div class="row" style="margin-top:10px">
+        <label class="f">Fixed / locked until<input type="date" id="pf-${p.id}" data-pot="${p.id}" data-pf="fixedUntil" value="${p.fixedUntil || ""}"></label>
+        <span class="hint" style="align-self:center">Leave blank for easy access.</span>
+      </div>`}
+      ${list.length ? `<div class="scroll-y" style="max-height:150px; margin-top:10px"><table><tbody>${list.map((e, j) => `<tr><td>${shortDate(e.date)}</td><td class="r">${gbp(num(e.value))}</td><td class="r" style="width:30px"><button class="x" data-delhist="${p.id}|${e.date}" id="dh-${p.id}-${j}" aria-label="Delete entry">×</button></td></tr>`).join("")}</tbody></table></div>` : ""}
+      <div style="margin-top:10px"><button class="small danger" data-delpot="${p.id}" id="dp-${p.id}">Delete this pot</button></div>
+    </details>
+  </div>`;
+}
+function viewWealth() {
+  const w = wealthNow();
+  const g = state.goal, gp = num(g.target) ? Math.min(1, w.total / num(g.target)) : 0;
+  const R = 52, C = 2 * Math.PI * R;
+  const infos = state.pots.map(p => ({ p, i: potInfo(p) }));
+  const yearly = infos.reduce((t, x) => t + x.i.yearly, 0) + w.cash * num(state.sp.cash.rate) / 100;
+  const next = infos.filter(x => x.i.end && x.i.daysLeft > 0).sort((a, b) => a.i.daysLeft - b.i.daysLeft)[0];
+  const today = todayISO();
+  const regDefault = today.slice(0, 8) + "01";
+  return `${exampleBanner()}
+  <div class="view-head"><div><h2>Savings, Bonds &amp; Investments</h2><p class="sub">Each pot has its own rate and term. Type in the balance whenever you check it; every update is kept.</p></div></div>
+  <div class="grid g3">
+    <div class="card kpi"><div class="label">Total in pots</div><div class="value">${gbp0(Object.values(w.byType).reduce((a, b) => a + b, 0))}</div><div class="note">Plus ${gbp0(w.sp + w.cash)} in the S&amp;P account</div></div>
+    <div class="card kpi"><div class="label">Interest you're earning</div><div class="value pos">${gbp0(yearly)}<span style="font-size:1rem; color:var(--muted)"> / yr</span></div><div class="note">About ${gbp(yearly / 12)} a month at today's balances</div></div>
+    <div class="card kpi"><div class="label">Next unlock</div><div class="value">${next ? shortDate(next.i.end) : "None"}</div><div class="note">${next ? esc(next.p.name) + " · " + next.i.daysLeft + " days" : "No fixed or regular savers running"}</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">${state.pots.map(potCard).join("") || '<div class="card"><div class="empty">No pots yet. Add your first one below.</div></div>'}</div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card span2"><h3>Add a pot</h3>
+      <form id="potAdd" class="row">
+        <label class="f">Name<input id="naName" required maxlength="40" placeholder="e.g. Regular saver"></label>
+        <label class="f">Type<select id="naType">${Object.entries(TYPES).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("")}</select></label>
+        <label class="f">Interest rate %<input id="naRate" inputmode="decimal" placeholder="e.g. 8"></label>
+        <label class="f">Balance now<span class="money"><input id="naBal" inputmode="decimal" placeholder="0.00"></span></label>
+        <label class="f" id="naFixWrap">Fixed until<input type="date" id="naFixed"></label>
+        <label class="f" id="naMonthlyWrap" hidden>Monthly payment<span class="money"><input id="naMonthly" inputmode="decimal" placeholder="200"></span></label>
+        <label class="f" id="naStartWrap" hidden>Started<input type="date" id="naStart" value="${regDefault}"></label>
+        <label class="f" id="naTermWrap" hidden>Term (months)<input id="naTerm" inputmode="numeric" value="12"></label>
+        <button class="primary" type="submit" id="btnAddPot">Add pot</button>
+      </form>
+      <p class="hint">Fixed bonds: set the date it unlocks. Regular savers: set the monthly payment, start date and term, and it works out what you'll have at the end.</p>
+    </div>
+    <div class="card span2"><h3>Growth</h3><div class="chart-box tall"><canvas id="cAccounts"></canvas></div></div>
+    <div class="card span2"><h3>Savings goal</h3>
+      <div class="ring">
+        <svg width="130" height="130" viewBox="0 0 130 130" role="img" aria-label="${(gp * 100).toFixed(0)}% of goal">
+          <circle cx="65" cy="65" r="${R}" fill="none" stroke="#182620" stroke-width="14"/>
+          <circle cx="65" cy="65" r="${R}" fill="none" stroke="#3ec27f" stroke-width="14" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - gp)}" transform="rotate(-90 65 65)"/>
+          <text x="65" y="72" text-anchor="middle" fill="#e4eee8" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="26">${(gp * 100).toFixed(0)}%</text>
+        </svg>
+        <div class="stack" style="flex:1; min-width:0">
+          <div class="kpi"><div class="label">${esc(g.name)}</div><div class="value">${gbp0(w.total)} <span style="color:var(--muted); font-size:1.2rem">of ${gbp0(num(g.target))}</span></div><div class="note">${w.total >= num(g.target) ? '<span class="pos">Goal reached</span>' : gbp0(num(g.target) - w.total) + " to go. Counts every pot plus the S&amp;P account."}</div></div>
+          <div class="row">
+            <label class="f">Goal name<input id="goalName" value="${esc(g.name)}" maxlength="40"></label>
+            <label class="f">Target<span class="money"><input id="goalTarget" inputmode="decimal" value="${num(g.target) || ""}"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function drawWealth() {
+  const keys = allMonthKeys().slice(-24);
+  const ds = state.pots.map((p, i) => ({ label: p.name, data: keys.map(k => potBalance(p, endFor(k))), borderColor: potColor(i), backgroundColor: potColor(i), tension: .3, pointRadius: 2 }));
+  state.sp.holdings.forEach(h => ds.push({ label: h.short || h.name, data: keys.map(k => holdValueAt(h, k)), borderColor: h.color, backgroundColor: h.color, tension: .3, pointRadius: 2 }));
+  ds.push({ label: "Cash to invest", data: keys.map(k => latestAt(state.sp.cash.history, endFor(k))), borderColor: CASH_COL, backgroundColor: CASH_COL, tension: .3, pointRadius: 2, borderDash: [4, 3] });
+  mkChart("cAccounts", { type: "line", data: { labels: keys.map(k => monthLabel(k)), datasets: ds }, options: { interaction: { mode: "index", intersect: false }, plugins: { tooltip: moneyTip }, scales: { y: { ticks: moneyTick }, x: { grid: { display: false } } } } });
+}
+
+/* ----- S&P 500 ----- */
+const fMonthly = f => f.monthly !== undefined && f.monthly !== null && f.monthly !== "" ? num(f.monthly) : Math.round(num(f.weekly) * 52 / 12);
+const fWeeklyAmt = f => fMonthly(f) * 12 / 52;
+function forecastSeries(start, weekly, ratePct, years) {
+  const rw = Math.pow(1 + ratePct / 100, 1 / 52) - 1;
+  const weeks = Math.round(52 * years);
+  const step = years <= 1 ? 52 / 12 : 52;
+  const out = [start]; let v = start, nextMark = step;
+  for (let w = 1; w <= weeks; w++) { v = v * (1 + rw) + weekly; if (w >= nextMark - 0.01) { out.push(v); nextMark += step; } }
+  return out;
+}
+function nextBuyDate(last) {
+  if (!last) return todayISO();
+  const d = new Date(last.date + "T00:00:00"); d.setDate(d.getDate() + 7);
+  const iso = isoDate(d); return iso > todayISO() ? todayISO() : iso;
+}
+function viewSP() {
+  const s = spValueNow();
+  const gain = s.value - s.paid, gainPct = s.paid ? gain / s.paid * 100 : 0;
+  const f = state.forecast;
+  const hs = state.sp.holdings;
+  if (!hs.find(h => h.id === ui.hold)) ui.hold = hs[0] ? hs[0].id : "";
+  const sel = hs.find(h => h.id === ui.hold);
+  const ss = sel ? holdStats(sel) : null;
+  const selLast = ss && ss.buys[ss.buys.length - 1];
+  const cashYearly = s.cash * s.cashRate / 100;
+  const holdCards = s.per.map(({ h, st }) => {
+    const g = st.value - st.paid, gp = st.paid ? g / st.paid * 100 : 0;
+    const open = ui.open.has("h-" + h.id) ? " open" : "";
+    const live = (ui.live && ui.live[h.id]) || {};
+    return `<div class="card">
+      <div class="kpi"><div class="label" style="color:${h.color}">${esc(h.short || h.name)}</div>
+        <div style="font-weight:600; margin-top:2px">${esc(h.name)}</div>
+        <div class="value">${gbp0(st.value)}</div>
+        <div class="note">${st.shares.toFixed(3)} shares at ${gbp(st.price)}</div></div>
+      <div class="pot-facts">
+        <div>Put in <b>${gbp0(st.paid)}</b> over ${st.buys.length} buy${st.buys.length === 1 ? "" : "s"}</div>
+        <div>Profit / loss <b class="${g >= 0 ? "pos" : "neg"}">${g >= 0 ? "+" : "−"}${gbp0(Math.abs(g)).replace("−", "")} (${pct(gp)})</b></div>
+        <div>Your average price <b>${gbp(st.avg)}</b></div>
+      </div>
+      <form class="row" data-priceform="${h.id}" style="margin-top:12px">
+        <label class="f">Today's price<span class="money"><input id="hp-${h.id}" inputmode="decimal" value="${num(h.currentPrice) || ""}" placeholder="0.00"></span></label>
+        <label class="f">Checked on<input type="date" id="hd-${h.id}" value="${h.priceDate || todayISO()}"></label>
+        <button class="primary" type="submit" id="hb-${h.id}">Update</button>
+      </form>
+      <div class="row" style="margin-top:8px; align-items:center">
+        <button type="button" class="small" data-live="${h.id}" id="live-${h.id}"${live.busy ? " disabled" : ""}>${live.busy ? "Fetching…" : "Get live price"}</button>
+        ${live.msg ? `<span class="hint ${live.ok ? "pos" : live.busy ? "" : "warn-t"}" style="flex:1 1 200px">${esc(live.msg)}</span>` : `<span class="hint" style="flex:1 1 200px">${h.ticker ? "From Yahoo Finance (" + esc(h.ticker) + ")" : "Set a Yahoo ticker to fetch prices"}</span>`}
+      </div>
+      ${(() => { const ob = h.buys.find(b => b.opening); const sh = ob && num(ob.price) ? num(ob.amount) / num(ob.price) : 0; return `
+      <form class="stack" data-openform="${h.id}" style="margin-top:14px; border-top:1px solid var(--line); padding-top:12px">
+        <div class="hint" style="margin:0"><b style="color:var(--fg)">Shares you already own</b> · ${ob ? `now set to ${+sh.toFixed(4)} shares at ${gbp(num(ob.price))} average (${gbp(num(ob.amount))} paid), as of ${shortDate(ob.date)}` : "if you bought before using this tracker, enter what you hold and your average price"}</div>
+        <div class="row">
+          <label class="f">Number of shares<input id="os-${h.id}" inputmode="decimal" value="${ob ? +sh.toFixed(4) : ""}" placeholder="e.g. 25.5"></label>
+          <label class="f">Average price paid<span class="money"><input id="oa-${h.id}" inputmode="decimal" value="${ob ? num(ob.price) : ""}" placeholder="0.00"></span></label>
+          <label class="f">As of<input type="date" id="od-${h.id}" value="${ob ? ob.date : todayISO()}"></label>
+          <button class="primary" type="submit" id="ob-${h.id}">${ob ? "Update" : "Save"}</button>
+        </div>
+        ${ob ? `<div><button type="button" class="small ghost" data-clearopen="${h.id}" id="oc-${h.id}">Remove starting holding</button></div>` : ""}
+      </form>`; })()}
+      <details class="more" data-pot-details="h-${h.id}"${open}><summary>Name and delete</summary>
+        <div class="row">
+          <label class="f">Name<input id="hn-${h.id}" data-hid="${h.id}" data-hf="name" value="${esc(h.name)}" maxlength="50"></label>
+          <label class="f">Short name<input id="hs-${h.id}" data-hid="${h.id}" data-hf="short" value="${esc(h.short || "")}" maxlength="20"></label>
+          <label class="f">Yahoo ticker<input id="ht-${h.id}" data-hid="${h.id}" data-hf="ticker" value="${esc(h.ticker || "")}" maxlength="20" placeholder="e.g. VUSA.L"></label>
+        </div>
+        <p class="hint">The ticker as Yahoo Finance UK shows it. London-listed funds end in .L, e.g. VUSA.L, CSP1.L, SGLN.L.</p>
+        <div style="margin-top:10px"><button class="small danger" data-delhold="${h.id}" id="dhold-${h.id}">Delete this holding and its buys</button></div>
+      </details>
+    </div>`;
+  }).join("");
+  const allBuys = [];
+  hs.forEach(h => { const st = holdStats(h); h.buys.forEach(b => allBuys.push({ h, b, avg: st.avg })); });
+  allBuys.sort((a, b) => b.b.date.localeCompare(a.b.date));
+  const rows = allBuys.map(({ h, b, avg }) => {
+    const sh = num(b.price) ? num(b.amount) / num(b.price) : 0;
+    const cheap = num(b.price) <= avg;
+    return `<tr><td>${shortDate(b.date)}</td><td><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${h.color};margin-right:6px"></span>${esc(h.short || h.name)}</td><td class="r">${gbp(num(b.amount))}</td><td class="r">${gbp(num(b.price))}</td><td class="r">${sh.toFixed(4)}</td><td>${b.opening ? '<span class="pill b">Starting holding</span>' : `<span class="pill ${cheap ? "g" : "r"}">${cheap ? "Below avg" : "Above avg"}</span>`}</td><td class="r" style="width:30px"><button class="x" data-delbuy="${h.id}|${b.id}" id="db-${b.id}" aria-label="Delete buy">×</button></td></tr>`;
+  }).join("");
+  const repeats = hs.map(h => { const st = holdStats(h); const l = st.buys[st.buys.length - 1]; return l ? `<button class="small" data-repeat="${h.id}" id="rep-${h.id}">${esc(h.short || h.name)}: ${gbp(num(l.amount))} at ${gbp(num(l.price))}, ${shortDate(nextBuyDate(l))}</button>` : ""; }).filter(Boolean).join(" ");
+  const yrs = [1, 5, 10, 20];
+  const start = s.total;
+  const end = r => forecastSeries(start, fWeeklyAmt(f), r, num(f.years)).slice(-1)[0];
+  const putIn = s.paid + s.cash + fWeeklyAmt(f) * 52 * num(f.years);
+  const split = s.per.map(({ h, st }) => esc(h.short || h.name) + " " + gbp0(st.value)).join(" · ");
+  return `${exampleBanner()}
+  <div class="view-head"><div><h2>S&amp;P 500 &amp; Gold</h2><p class="sub">Log each buy at the price you paid. Keep the cash waiting in the account up to date too.</p></div></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Portfolio total</div><div class="value">${gbp0(s.total)}</div><div class="note">${split}${split ? " · " : ""}cash ${gbp0(s.cash)}</div></div>
+    <div class="card kpi"><div class="label">Put into investments</div><div class="value">${gbp0(s.paid)}</div><div class="note">${s.buyCount} buy${s.buyCount === 1 ? "" : "s"}</div></div>
+    <div class="card kpi"><div class="label">Profit / loss</div><div class="value ${gain >= 0 ? "pos" : "neg"}">${gain >= 0 ? "+" : "−"}${gbp0(Math.abs(gain)).replace("−", "")}</div><div class="note ${gain >= 0 ? "pos" : "neg"}">${pct(gainPct)}</div></div>
+    <div class="card kpi"><div class="label">Cash waiting to invest</div><div class="value" style="color:${CASH_COL}">${gbp0(s.cash)}</div><div class="note">${s.cashRate ? s.cashRate + "% interest · ≈ " + gbp(cashYearly) + " a year" : "No interest rate set"}</div></div>
+  </div>
+  <div class="row" style="margin-top:16px; align-items:center; justify-content:space-between">
+    <p class="hint" style="margin:0; flex:1 1 300px">Live prices come from Yahoo Finance, fetched by GitHub every 30 minutes on weekdays (delayed about 15 minutes).</p>
+    <button class="primary" data-act="live-all" id="btnLiveAll"${liveBusy ? " disabled" : ""}>${liveBusy ? "Fetching…" : "Update all live prices"}</button>
+  </div>
+  <div class="grid g2" style="margin-top:12px">${holdCards}</div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Log a buy</h3>
+      <form id="buyForm" class="stack">
+        <div class="row">
+          <label class="f">What<select id="buyHold">${hs.map(h => `<option value="${h.id}"${h.id === ui.hold ? " selected" : ""}>${esc(h.short || h.name)}</option>`).join("")}</select></label>
+          <label class="f">Date<input type="date" id="buyDate" value="${nextBuyDate(selLast)}" required></label>
+        </div>
+        <div class="row">
+          <label class="f">Amount<span class="money"><input id="buyAmt" inputmode="decimal" value="${selLast ? num(selLast.amount) : ""}" placeholder="50.00" required></span></label>
+          <label class="f">Price per share<span class="money"><input id="buyPrice" inputmode="decimal" placeholder="${selLast ? num(selLast.price).toFixed(2) : "0.00"}" required></span></label>
+        </div>
+        <div class="row" style="align-items:center">
+          <label class="check"><input type="checkbox" id="buyFromCash"${s.cash > 0 ? " checked" : ""}> Paid from the cash waiting</label>
+          <button class="primary" type="submit" id="btnBuy">Add buy</button>
+        </div>
+      </form>
+      ${repeats ? `<p class="hint" style="margin-top:10px">Same as last time? Repeat a buy:</p><div class="row" style="gap:6px">${repeats}</div>` : ""}
+    </div>
+    <div class="card"><h3>Cash waiting to invest</h3>
+      <form id="cashForm" class="row">
+        <label class="f">Cash balance now<span class="money"><input id="cashBal" inputmode="decimal" value="${s.cash ? s.cash.toFixed(2) : ""}" placeholder="0.00"></span></label>
+        <label class="f">Interest rate %<input id="cashRate" inputmode="decimal" value="${s.cashRate || ""}" placeholder="e.g. 4"></label>
+        <button class="primary" type="submit" id="btnCash">Update</button>
+      </form>
+      <form id="cashAdd" class="row" style="margin-top:10px">
+        <label class="f">Paid in more cash<span class="money"><input id="cashIn" inputmode="decimal" placeholder="e.g. 200"></span></label>
+        <button type="submit" id="btnCashIn">Add to cash</button>
+      </form>
+      <p class="hint">Cash counts toward your portfolio total and net worth. Interest is worked out on today's balance. Prices aren't live: type them in from your trading app.</p>
+      <form id="holdAdd" class="row" style="margin-top:14px; border-top:1px solid var(--line); padding-top:12px">
+        <label class="f">Add another investment<input id="nhName" maxlength="50" placeholder="e.g. FTSE All-World (VWRP)"></label>
+        <label class="f" style="flex:0 1 130px">Short name<input id="nhShort" maxlength="20" placeholder="e.g. VWRP"></label>
+        <button type="submit" id="btnAddHold">Add</button>
+      </form>
+    </div>
+    <div class="card span2"><div class="view-head" style="margin-bottom:8px"><h3 style="margin:0">Put in vs worth</h3>
+      <div class="seg" role="group" aria-label="Which investment">${hs.map(h => `<button type="button" data-hold="${h.id}" id="hold-${h.id}" aria-pressed="${h.id === ui.hold}">${esc(h.short || h.name)}</button>`).join("")}</div></div>
+      ${ss && ss.buys.length ? '<div class="chart-box tall"><canvas id="cSPHistory"></canvas></div>' : '<div class="empty">Log a buy for this one and the graph starts here.</div>'}</div>
+    <div class="card span2"><h3>Did you buy high or low? · ${sel ? esc(sel.short || sel.name) : ""}</h3>${ss && ss.buys.length ? `<p class="hint" style="margin-top:-6px">Your average price is <b>${gbp(ss.avg)}</b>. Today's is <b class="${ss.price >= ss.avg ? "pos" : "neg"}">${gbp(ss.price)}</b>.</p><div class="chart-box"><canvas id="cSPPrices"></canvas></div><p class="hint">Green dots are buys below your average price, red dots are above it. The dashed line is your average.</p>` : '<div class="empty">Each buy will show here as a dot.</div>'}</div>
+    <div class="card span2"><h3>Forecast</h3>
+      <p class="hint" style="margin-top:-6px">Starts from your whole portfolio of ${gbp0(start)} (all investments and cash). Gold doesn't move with the S&amp;P, so treat this as a rough guide.</p>
+      <div class="grid g3" style="align-items:end">
+        <div><div class="hint" style="margin-bottom:6px">How far ahead</div><div class="seg" role="group" aria-label="Forecast years">${yrs.map(y => `<button type="button" data-years="${y}" id="yr-${y}" aria-pressed="${num(f.years) === y}">${y} yr${y > 1 ? "s" : ""}</button>`).join("")}</div></div>
+        <label class="f">Monthly deposit<div class="range-row"><input type="range" id="fWeekly" min="0" max="5000" step="25" value="${Math.min(5000, fMonthly(f))}" aria-label="Monthly deposit"><span class="money" style="flex:0 0 110px"><input id="fMonthlyNum" inputmode="decimal" value="${fMonthly(f)}" aria-label="Monthly deposit amount"></span></div></label>
+        <label class="f">Your own growth rate<div class="range-row"><input type="range" id="fRate" min="0" max="15" step="0.5" value="${num(f.rate)}" aria-label="Yearly growth rate"><output id="fRateOut">${num(f.rate)}% / yr</output></div></label>
+      </div>
+      <div class="chart-box tall" style="margin-top:16px"><canvas id="cForecast"></canvas></div>
+      <div class="tbl-wrap" style="margin-top:12px"><table id="fTable">
+        <thead><tr><th>In ${num(f.years)} year${num(f.years) > 1 ? "s" : ""}</th><th class="r">Total put in</th><th class="r">Worth</th><th class="r">Growth</th></tr></thead>
+        <tbody>
+          ${[["Cautious (4%)", 4, "#ef5b52"], ["Average (7%)", 7, "#3ec27f"], ["Strong (10%)", 10, "#5fe0a0"], ["Your rate (" + num(f.rate) + "%)", num(f.rate), "#e6a63c"]].map(([n, r, c]) => { const e = end(r); return `<tr><td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c};margin-right:8px"></span><span>${n}</span></td><td class="r">${gbp0(putIn)}</td><td class="r"><b>${gbp0(e)}</b></td><td class="r ${e - putIn >= 0 ? "pos" : "neg"}">${gbp0(e - putIn)}</td></tr>`; }).join("")}
+        </tbody></table></div>
+      <p class="disclaimer">This is a "what if" calculator, not a prediction or financial advice. It assumes steady growth at the rates shown. The S&amp;P 500 has averaged roughly 7% a year after inflation over the long run; gold behaves differently. Real returns jump around a lot year to year and can be negative.</p>
+    </div>
+    <div class="card span2"><h3>All buys</h3>${allBuys.length ? `<div class="tbl-wrap scroll-y"><table><thead><tr><th>Date</th><th>What</th><th class="r">Amount</th><th class="r">Price</th><th class="r">Shares</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty">No buys yet.</div>'}</div>
+  </div>`;
+}
+let forecastChart = null;
+function forecastData() {
+  const s = spValueNow(), f = state.forecast, Y = num(f.years);
+  const lines = [["Cautious 4%", 4, "#ef5b52"], ["Average 7%", 7, "#3ec27f"], ["Strong 10%", 10, "#5fe0a0"], ["Your rate " + num(f.rate) + "%", num(f.rate), "#e6a63c"]];
+  const series = lines.map(([n, r, c], i) => ({ label: n, data: forecastSeries(s.total, fWeeklyAmt(f), r, Y), borderColor: c, backgroundColor: c, borderDash: i === 3 ? [6, 4] : [], pointRadius: 0, tension: .25, borderWidth: i === 1 ? 3 : 2 }));
+  const n = series[0].data.length;
+  const step = Y <= 1 ? 52 / 12 : 52;
+  series.push({ label: "Money put in", data: Array.from({ length: n }, (_, i) => s.paid + s.cash + fWeeklyAmt(f) * Math.min(step * i, 52 * Y)), borderColor: "#8ea79a", backgroundColor: "rgba(142,167,154,.08)", fill: true, pointRadius: 0, borderWidth: 1.5 });
+  const now = new Date();
+  const labels = Array.from({ length: n }, (_, i) => i === 0 ? "Now" : Y <= 1 ? monthLabel(shiftMonth(monthKey(now), i)) : String(now.getFullYear() + i));
+  return { labels, series };
+}
+function drawSP() {
+  const sel = state.sp.holdings.find(h => h.id === ui.hold);
+  const ss = sel ? holdStats(sel) : null;
+  if (ss && ss.buys.length) {
+    let cs = 0, cp = 0;
+    const labels = [], dep = [], val = [];
+    ss.buys.forEach(b => { if (num(b.price)) cs += num(b.amount) / num(b.price); cp += num(b.amount); labels.push(shortDate(b.date)); dep.push(cp); val.push(cs * num(b.price)); });
+    if (num(sel.currentPrice)) { labels.push("Today"); dep.push(cp); val.push(cs * num(sel.currentPrice)); }
+    mkChart("cSPHistory", { type: "line", data: { labels, datasets: [
+      { label: (sel.short || sel.name) + " worth", data: val, borderColor: "#3ec27f", backgroundColor: "rgba(62,194,127,.12)", fill: true, tension: .25, pointRadius: 3, pointBackgroundColor: "#3ec27f" },
+      { label: "Put in", data: dep, borderColor: "#8ea79a", stepped: true, pointRadius: 0, borderWidth: 1.5 }
+    ] }, options: { interaction: { mode: "index", intersect: false }, plugins: { tooltip: moneyTip }, scales: { y: { ticks: moneyTick }, x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } } } } });
+    const prices = ss.buys.map(b => num(b.price));
+    mkChart("cSPPrices", { type: "line", data: { labels: ss.buys.map(b => shortDate(b.date)), datasets: [
+      { label: "Price you paid", data: prices, borderColor: "#4a6b5a", pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: prices.map(p => p <= ss.avg ? "#3ec27f" : "#ef5b52"), pointBorderColor: prices.map(p => p <= ss.avg ? "#3ec27f" : "#ef5b52"), tension: .2 },
+      { label: "Your average", data: prices.map(() => ss.avg), borderColor: "#e6a63c", borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5 }
+    ] }, options: { plugins: { tooltip: moneyTip }, scales: { y: { ticks: { callback: v => "£" + Number(v).toFixed(0) } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } } } } });
+  }
+  const fd = forecastData();
+  forecastChart = mkChart("cForecast", { type: "line", data: { labels: fd.labels, datasets: fd.series }, options: { interaction: { mode: "index", intersect: false }, plugins: { tooltip: moneyTip }, scales: { y: { ticks: moneyTick, beginAtZero: true }, x: { grid: { display: false } } } } });
+}
+function updateForecastLive() {
+  const f = state.forecast;
+  const box = $("#fMonthlyNum"); if (box && document.activeElement !== box) box.value = fMonthly(f);
+  $("#fRateOut").textContent = num(f.rate) + "% / yr";
+  if (forecastChart) { const fd = forecastData(); forecastChart.data.labels = fd.labels; fd.series.forEach((d, i) => { forecastChart.data.datasets[i].data = d.data; forecastChart.data.datasets[i].label = d.label; }); forecastChart.update("none"); }
+  const s = spValueNow();
+  const putIn = s.paid + s.cash + fWeeklyAmt(f) * 52 * num(f.years);
+  const rates = [4, 7, 10, num(f.rate)];
+  document.querySelectorAll("#fTable tbody tr").forEach((tr, i) => {
+    const e = forecastSeries(s.total, fWeeklyAmt(f), rates[i], num(f.years)).slice(-1)[0];
+    tr.children[1].textContent = gbp0(putIn); tr.children[2].innerHTML = "<b>" + gbp0(e) + "</b>";
+    tr.children[3].textContent = gbp0(e - putIn); tr.children[3].className = "r " + (e - putIn >= 0 ? "pos" : "neg");
+    if (i === 3) tr.children[0].lastElementChild.textContent = "Your rate (" + num(f.rate) + "%)";
+  });
+}
+function setCash(value) {
+  const h = state.sp.cash.history, t = todayISO();
+  state.sp.cash.history = h.filter(e => e.date !== t);
+  state.sp.cash.history.push({ date: t, value: Math.max(0, +value.toFixed(2)) });
+}
+
+/* ----- Presents ----- */
+function viewGifts() {
+  const year = new Date().getFullYear();
+  const bd = state.gifts.filter(g => g.type === "birthday").sort((a, b) => a.date.slice(5).localeCompare(b.date.slice(5)));
+  const xm = state.gifts.filter(g => g.type === "christmas");
+  const tot = l => l.reduce((a, g) => ({ b: a.b + num(g.budget), s: a.s + num(g.spent) }), { b: 0, s: 0 });
+  const tb = tot(bd), tx = tot(xm);
+  const daysTo = mmdd => { const now = new Date(); now.setHours(0,0,0,0); let d = new Date(year + "-" + mmdd + "T00:00:00"); if (d < now) d = new Date((year + 1) + "-" + mmdd + "T00:00:00"); return Math.round((d - now) / 864e5); };
+  const xmasDays = daysTo("12-25");
+  const table = (list, isBday) => list.length ? `<div class="tbl-wrap"><table><thead><tr><th>Who</th>${isBday ? "<th>Birthday</th>" : ""}<th class="r">Budget</th><th class="r">Spent</th><th>Bought on</th><th></th><th></th></tr></thead><tbody>${list.map(g => {
+    const over = num(g.spent) > num(g.budget) && num(g.budget) > 0;
+    const done = num(g.spent) > 0 && !over;
+    const dl = isBday ? daysTo(g.date.slice(5)) : null;
+    return `<tr><td>${esc(g.name)}</td>${isBday ? `<td>${shortDate(g.date).slice(0, -3)} <span class="hint">${dl === 0 ? "today" : "in " + dl + "d"}</span></td>` : ""}
+    <td class="r" style="width:105px"><span class="money"><input id="gb-${g.id}" data-gift="${g.id}" data-field="budget" inputmode="decimal" value="${num(g.budget) || ""}" aria-label="Budget for ${esc(g.name)}"></span></td>
+    <td class="r" style="width:105px"><span class="money"><input id="gs-${g.id}" data-gift="${g.id}" data-field="spent" inputmode="decimal" value="${num(g.spent) || ""}" placeholder="0" aria-label="Spent on ${esc(g.name)}"></span></td>
+    <td style="width:140px"><input type="date" id="gd-${g.id}" data-gift="${g.id}" data-field="bought" value="${g.bought || ""}" aria-label="Date bought for ${esc(g.name)}"></td>
+    <td>${over ? '<span class="pill r">Over</span>' : done ? '<span class="pill g">Bought</span>' : '<span class="pill a">To buy</span>'}</td>
+    <td class="r" style="width:30px"><button class="x" data-delgift="${g.id}" id="dg-${g.id}" aria-label="Remove ${esc(g.name)}">×</button></td></tr>`;
+  }).join("")}</tbody></table></div>` : '<div class="empty">Nobody added yet.</div>';
+  const meter = t => `<div class="meter ${t.s > t.b ? "over" : ""}"><i style="width:${t.b ? Math.min(100, t.s / t.b * 100) : 0}%"></i></div><div class="hint">${gbp0(t.s)} spent of ${gbp0(t.b)} budget${t.s > t.b ? ' · <span class="neg">' + gbp0(t.s - t.b) + " over</span>" : " · " + gbp0(t.b - t.s) + " left"}</div>`;
+  return `${exampleBanner()}
+  <div class="view-head"><div><h2>Presents</h2><p class="sub">Presents are spending. What you put in "Spent" is added to that month's expenses, in the month on "Bought on".</p></div></div>
+  <div class="grid g2">
+    <div class="card"><h3>Birthdays</h3>${meter(tb)}<div style="margin-top:12px">${table(bd, true)}</div></div>
+    <div class="card"><h3>Christmas <span class="hint" style="text-transform:none; letter-spacing:0; font-family:var(--font-body); font-weight:400">· ${xmasDays} days to go</span></h3>${meter(tx)}<div style="margin-top:12px">${table(xm, false)}</div></div>
+    <div class="card span2"><h3>Add someone</h3>
+      <form id="giftForm" class="row">
+        <label class="f">Name<input id="gName" required maxlength="40" placeholder="e.g. Mum"></label>
+        <label class="f">For<select id="gType"><option value="birthday">Birthday</option><option value="christmas">Christmas</option></select></label>
+        <label class="f">Birthday date<input type="date" id="gDate"></label>
+        <label class="f">Budget<span class="money"><input id="gBudget" inputmode="decimal" placeholder="0.00"></span></label>
+        <button class="primary" type="submit" id="btnGift">Add</button>
+      </form>
+    </div>
+  </div>`;
+}
+
+/* ---------- render & routing ---------- */
+/* ----- Progress: plan vs actual ----- */
+const plannedFor = k => { const m = state.months[k]; return m && m.planned !== undefined && m.planned !== "" && m.planned !== null ? num(m.planned) : num(state.plan.monthly); };
+function planSeries() {
+  const p = state.plan, now = monthKey(new Date());
+  const start = p.start && p.start <= now ? p.start : now;
+  const months = []; let k = start;
+  while (k <= now && months.length < 240) { months.push(k); k = shiftMonth(k, 1); }
+  const auto = p.startValue === "" || p.startValue === null || p.startValue === undefined;
+  const startVal = auto ? netWorthAt(start) : num(p.startValue);
+  const g = num(p.growth) / 1200;
+  let e = startVal;
+  const exp = [], act = [], planned = [], saved = [];
+  months.forEach((mk, i) => {
+    const pl = plannedFor(mk);
+    if (i > 0) e = e * (1 + g) + pl;
+    exp.push(e); act.push(netWorthAt(mk)); planned.push(pl); saved.push(num(monthData(mk).saved));
+  });
+  // look 12 months ahead: the plan carrying on, and your recent pace carrying on
+  const recent = saved.slice(-3).filter(v => v > 0);
+  const pace = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
+  const fut = [], futExp = [], futPace = [];
+  let fe = exp[exp.length - 1], fp = act[act.length - 1];
+  for (let i = 1; i <= 12; i++) { const fk = shiftMonth(now, i); fe = fe * (1 + g) + num(p.monthly); fp = fp * (1 + g) + pace; fut.push(fk); futExp.push(fe); futPace.push(fp); }
+  return { months, exp, act, planned, saved, startVal, auto, pace, fut, futExp, futPace };
+}
+function viewProgress() {
+  const p = state.plan, ps = planSeries(), n = ps.months.length;
+  const expNow = ps.exp[n - 1], actNow = ps.act[n - 1], diff = actNow - expNow;
+  const diffPct = expNow ? diff / expNow * 100 : 0;
+  const totPlanned = ps.planned.reduce((a, b) => a + b, 0), totSaved = ps.saved.reduce((a, b) => a + b, 0);
+  const savedPct = totPlanned ? totSaved / totPlanned * 100 : 0;
+  let running = 0;
+  const rowsAsc = ps.months.map((k, i) => { const d = ps.saved[i] - ps.planned[i]; running += d; return { k, pl: ps.planned[i], sv: ps.saved[i], d, running }; });
+  const rows = rowsAsc.slice().reverse().map(r => `<tr><td>${monthLabel(r.k, true)}</td><td class="r">${gbp0(r.pl)}</td><td class="r">${gbp0(r.sv)}</td><td class="r ${r.d >= 0 ? "pos" : "neg"}">${r.d >= 0 ? "+" : "−"}${gbp0(Math.abs(r.d)).replace("−", "")}</td><td class="r ${r.running >= 0 ? "pos" : "neg"}">${r.running >= 0 ? "+" : "−"}${gbp0(Math.abs(r.running)).replace("−", "")}</td><td>${r.sv >= r.pl ? '<span class="pill g">Hit it</span>' : r.k === monthKey(new Date()) ? '<span class="pill a">In progress</span>' : '<span class="pill r">Short</span>'}</td></tr>`).join("");
+  const yearOut = ps.futExp[11], yearPace = ps.futPace[11];
+  return `${exampleBanner()}
+  <div class="view-head"><div><h2>Plan vs Actual</h2><p class="sub">Set what you mean to save or invest each month, then see whether your real savings are keeping up.</p></div></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="label">Plan says you'd have</div><div class="value">${gbp0(expNow)}</div><div class="note">By ${monthLabel(ps.months[n - 1], true)}</div></div>
+    <div class="card kpi"><div class="label">You actually have</div><div class="value">${gbp0(actNow)}</div><div class="note">All savings pots, investments and cash</div></div>
+    <div class="card kpi"><div class="label">${diff >= 0 ? "Ahead of plan" : "Behind plan"}</div><div class="value ${diff >= 0 ? "pos" : "neg"}">${diff >= 0 ? "+" : "−"}${gbp0(Math.abs(diff)).replace("−", "")}</div><div class="note ${diff >= 0 ? "pos" : "neg"}">${pct(diffPct)} vs the plan</div></div>
+    <div class="card kpi"><div class="label">Saved vs planned</div><div class="value">${savedPct.toFixed(0)}%</div><div class="meter ${savedPct < 100 ? "" : ""}"><i style="width:${Math.min(100, savedPct)}%; background:${savedPct >= 100 ? "var(--green)" : savedPct >= 80 ? "var(--amber)" : "var(--red)"}"></i></div><div class="note">${gbp0(totSaved)} of ${gbp0(totPlanned)} since ${monthLabel(ps.months[0])}</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card span2"><h3>Your plan</h3>
+      <div class="row">
+        <label class="f">Save / invest each month<span class="money"><input id="planMonthly" inputmode="decimal" value="${num(p.monthly) || ""}" placeholder="e.g. 700"></span></label>
+        <label class="f">Plan started<input type="month" id="planStart" value="${p.start || ""}"></label>
+        <label class="f">Starting balance<span class="money"><input id="planStartVal" inputmode="decimal" value="${ps.auto ? "" : num(p.startValue)}" placeholder="${Math.round(ps.startVal)} (auto)"></span></label>
+        <label class="f">Expected growth % a year<input id="planGrowth" inputmode="decimal" value="${num(p.growth)}" placeholder="e.g. 4"></label>
+      </div>
+      <p class="hint">Leave starting balance blank to use what you actually had at the end of the start month. Growth is the average return you expect across savings interest and investments. To plan a different amount for one month (a big bill, or a deployment month), change "Planned to save" on the Monthly tab.</p>
+    </div>
+    <div class="card span2"><h3>Expected vs real savings</h3><div class="chart-box tall"><canvas id="cProgress" aria-label="Expected and actual savings over time"></canvas></div>
+      <p class="hint">Dashed lines look 12 months ahead. On plan you'd reach <b>${gbp0(yearOut)}</b> by ${monthLabel(ps.fut[11], true)}${ps.pace ? `; at your recent pace of ${gbp0(ps.pace)} a month, <b class="${yearPace >= yearOut ? "pos" : "warn-t"}">${gbp0(yearPace)}</b>` : ""}.</p></div>
+    <div class="card span2"><h3>Each month: planned vs saved</h3><div class="chart-box"><canvas id="cPlanBars" aria-label="Planned and actual saving by month"></canvas></div></div>
+    <div class="card span2"><h3>Month by month</h3><div class="tbl-wrap scroll-y"><table><thead><tr><th>Month</th><th class="r">Planned</th><th class="r">Saved</th><th class="r">Difference</th><th class="r">Running total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">"Saved" is what you entered under "Moved to savings or investments" on the Monthly tab.</p></div>
+  </div>`;
+}
+function drawProgress() {
+  const ps = planSeries(), n = ps.months.length;
+  const labels = ps.months.concat(ps.fut).map(k => monthLabel(k));
+  const pad = arr => arr.concat(Array(ps.fut.length).fill(null));
+  const lead = arr => Array(n - 1).fill(null).concat([arr[0]]);
+  mkChart("cProgress", { type: "line", data: { labels, datasets: [
+    { label: "Actual", data: pad(ps.act), borderColor: "#3ec27f", backgroundColor: "rgba(62,194,127,.12)", fill: true, tension: .3, pointRadius: 3, pointBackgroundColor: "#3ec27f", borderWidth: 3 },
+    { label: "Plan", data: pad(ps.exp), borderColor: "#e4eee8", borderWidth: 2, pointRadius: 0, tension: .3 },
+    { label: "Plan, next 12 months", data: lead([ps.exp[n - 1]]).concat(ps.futExp), borderColor: "#8ea79a", borderDash: [6, 4], pointRadius: 0, tension: .3 },
+    ...(ps.pace ? [{ label: "Your recent pace", data: lead([ps.act[n - 1]]).concat(ps.futPace), borderColor: "#e6a63c", borderDash: [6, 4], pointRadius: 0, tension: .3 }] : [])
+  ] }, options: { interaction: { mode: "index", intersect: false }, plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y === null ? null : " " + ctx.dataset.label + ": " + gbp0(ctx.parsed.y) } } }, scales: { y: { ticks: moneyTick }, x: { grid: { display: false } } } } });
+  mkChart("cPlanBars", { type: "bar", data: { labels: ps.months.map(k => monthLabel(k)), datasets: [
+    { label: "Planned", data: ps.planned, backgroundColor: "#2a3d33", borderRadius: 3 },
+    { label: "Saved", data: ps.saved, backgroundColor: ps.saved.map((v, i) => v >= ps.planned[i] ? "#3ec27f" : "#ef5b52"), borderRadius: 3 }
+  ] }, options: { plugins: { tooltip: moneyTip, legend: { labels: { generateLabels: c => [{ text: "Planned", fillStyle: "#2a3d33", strokeStyle: "#2a3d33", fontColor: "#8ea79a" }, { text: "Saved (green = hit the plan, red = short)", fillStyle: "#3ec27f", strokeStyle: "#3ec27f", fontColor: "#8ea79a" }] } } }, scales: { y: { ticks: moneyTick }, x: { grid: { display: false } } } } });
+}
+
+const VIEWS = { overview: [viewOverview, drawOverview], month: [viewMonth, drawMonth], wealth: [viewWealth, drawWealth], sp500: [viewSP, drawSP], progress: [viewProgress, drawProgress], settings: [viewSettings, () => {}], gifts: [viewGifts, () => {}] };
+function render() {
+  if (!TOKEN) return;
+  const focusId = document.activeElement && document.activeElement.id;
+  killCharts(); forecastChart = null;
+  state = currentState();
+  const ro = ui.who === "all";
+  document.body.classList.toggle("ro-mode", ro && ui.view !== "settings");
+  const [v, d] = VIEWS[ui.view];
+  const note = ui.view === "settings" ? "" : ro ? `<div class="who-note"><b>Together:</b> ${HH.people.map(p => esc(p.name)).join(" + ")}, added up. Switch to one person at the top to change anything.</div>`
+    : `<div class="who-note">Showing <b>${esc(personName(ui.who))}'s</b> money. Changes are saved and shared automatically.</div>`;
+  $("#app").innerHTML = (tokenProblem && ui.view !== "settings" ? '<div class="banner"><span><b>Changes are not saving.</b> GitHub stopped accepting the access token. <a href="#settings" class="pos">Fix it in Settings</a>.</span></div>' : "") + note + v();
+  if (ro) $("#app").querySelectorAll("input, select").forEach(el => { if (!["fWeekly", "fRate", "fMonthlyNum"].includes(el.id)) el.disabled = true; });
+  renderWho();
+  document.querySelectorAll("#tabs a").forEach(a => a.setAttribute("aria-current", a.dataset.view === ui.view ? "page" : "false"));
+  d();
+  if (focusId) { const el = document.getElementById(focusId); if (el && el !== document.body) { try { el.focus({ preventScroll: true }); } catch (e) {} } }
+}
+function route() { const h = location.hash.replace("#", ""); ui.view = VIEWS[h] ? h : "overview"; render(); }
+function later() { setTimeout(render, 0); }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2200); }
+
+/* ---------- events ---------- */
+const app = $("#app");
+app.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.potDetails) { d.open ? ui.open.add(d.dataset.potDetails) : ui.open.delete(d.dataset.potDetails); } }, true);
+app.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.spend) { const m = ensureMonth(ui.month); m.spend[t.dataset.spend] = num(t.value); save(); later(); }
+  else if (t.dataset.budget) { const c = state.categories.find(c => c.id === t.dataset.budget); if (c) { c.budget = num(t.value); save(); later(); } }
+  else if (t.dataset.inc) { const m = ensureMonth(ui.month); m.income[t.dataset.inc] = num(t.value); save(); later(); }
+  else if (t.dataset.saved) { const m = ensureMonth(ui.month); m.saved = num(t.value); save(); later(); }
+  else if (t.dataset.planned) { const m = ensureMonth(ui.month); if (t.value.trim() === "") delete m.planned; else m.planned = num(t.value); save(); later(); }
+  else if (t.id === "planMonthly") { state.plan.monthly = num(t.value); save(); later(); }
+  else if (t.id === "planStart") { state.plan.start = t.value || monthKey(new Date()); save(); later(); }
+  else if (t.id === "planStartVal") { state.plan.startValue = t.value.trim() === "" ? "" : num(t.value); save(); later(); }
+  else if (t.id === "planGrowth") { state.plan.growth = num(t.value); save(); later(); }
+  else if (t.dataset.gift) {
+    const g = state.gifts.find(g => g.id === t.dataset.gift); if (!g) return;
+    if (t.dataset.field === "bought") g.bought = t.value;
+    else { g[t.dataset.field] = num(t.value); if (t.dataset.field === "spent" && num(t.value) > 0 && !g.bought) g.bought = todayISO(); }
+    save(); later();
+  }
+  else if (t.dataset.pot) {
+    const p = state.pots.find(p => p.id === t.dataset.pot); if (!p) return;
+    const f = t.dataset.pf;
+    if (f === "name") p.name = t.value.trim() || "Pot";
+    else if (f === "type") { p.type = t.value; if (p.type === "regular") { p.term = num(p.term) || 12; p.start = p.start || todayISO().slice(0, 8) + "01"; p.fixedUntil = ""; } }
+    else if (f === "rate" || f === "monthly" || f === "term") p[f] = num(t.value);
+    else p[f] = t.value;
+    save(); later();
+  }
+  else if (t.id === "naType") {
+    const reg = t.value === "regular";
+    $("#naFixWrap").hidden = reg; $("#naMonthlyWrap").hidden = !reg; $("#naStartWrap").hidden = !reg; $("#naTermWrap").hidden = !reg;
+  }
+  else if (t.id === "goalName") { state.goal.name = t.value.trim() || "Savings goal"; save(); later(); }
+  else if (t.id === "goalTarget") { state.goal.target = num(t.value); save(); later(); }
+  else if (t.id === "buyHold") { ui.hold = t.value; later(); }
+  else if (t.dataset.hid) { const h = state.sp.holdings.find(h => h.id === t.dataset.hid); if (h) { h[t.dataset.hf] = t.value.trim() || (t.dataset.hf === "name" ? "Investment" : ""); save(); later(); } }
+  else if (t.id === "cashRate") { state.sp.cash.rate = num(t.value); save(); later(); }
+  else if (t.id === "fWeekly" || t.id === "fRate" || t.id === "fMonthlyNum") { save(); }
+});
+app.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "fWeekly") { state.forecast.monthly = num(t.value); updateForecastLive(); }
+  if (t.id === "fMonthlyNum") { state.forecast.monthly = Math.max(0, num(t.value)); const r = $("#fWeekly"); if (r) r.value = Math.min(5000, state.forecast.monthly); updateForecastLive(); }
+  if (t.id === "fRate") { state.forecast.rate = num(t.value); updateForecastLive(); }
+});
+app.addEventListener("submit", e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === "addCat") {
+    const name = $("#newCatName").value.trim(); if (!name) { $("#newCatName").focus(); return; }
+    state.categories.push({ id: "c" + uid(), name, budget: num($("#newCatBudget").value) });
+    save(); render(); toast("Added " + name);
+  } else if (f.dataset.potform) {
+    const p = state.pots.find(p => p.id === f.dataset.potform); if (!p) return;
+    const date = $("#pd-" + p.id).value, val = $("#pv-" + p.id).value;
+    if (!date || val === "") return;
+    p.history = p.history.filter(x => x.date !== date);
+    p.history.push({ date, value: num(val) });
+    save(); render(); toast(p.name + " updated");
+  } else if (f.id === "potAdd") {
+    const name = $("#naName").value.trim(); if (!name) return;
+    const type = $("#naType").value, bal = $("#naBal").value;
+    const p = { id: uid(), name, type, rate: num($("#naRate").value), fixedUntil: type === "regular" ? "" : $("#naFixed").value, history: bal !== "" ? [{ date: todayISO(), value: num(bal) }] : [] };
+    if (type === "regular") { p.monthly = num($("#naMonthly").value); p.start = $("#naStart").value || todayISO(); p.term = num($("#naTerm").value) || 12; }
+    state.pots.push(p);
+    save(); render(); toast("Added " + name);
+  } else if (f.id === "buyForm") {
+    const date = $("#buyDate").value, amount = num($("#buyAmt").value), price = num($("#buyPrice").value);
+    if (!date || amount <= 0 || price <= 0) { toast("Enter a date, an amount and the price per share"); return; }
+    const h = state.sp.holdings.find(h => h.id === $("#buyHold").value); if (!h) return;
+    const fromCash = $("#buyFromCash").checked;
+    h.buys.push({ id: uid(), date, amount, price, fromCash });
+    if (fromCash) setCash(latestAt(state.sp.cash.history, todayISO()) - amount);
+    if (!num(h.currentPrice) || date >= (h.priceDate || "")) { h.currentPrice = price; h.priceDate = date; }
+    ui.hold = h.id;
+    save(); render(); toast((h.short || h.name) + ": " + (amount / price).toFixed(4) + " shares logged");
+  } else if (f.id === "cashForm") {
+    setCash(num($("#cashBal").value)); state.sp.cash.rate = num($("#cashRate").value);
+    save(); render(); toast("Cash updated");
+  } else if (f.id === "cashAdd") {
+    const add = num($("#cashIn").value); if (add <= 0) return;
+    setCash(latestAt(state.sp.cash.history, todayISO()) + add);
+    save(); render(); toast("Added " + gbp(add) + " to cash");
+  } else if (f.dataset.openform) {
+    const h = state.sp.holdings.find(h => h.id === f.dataset.openform); if (!h) return;
+    const shares = num($("#os-" + h.id).value), avg = num($("#oa-" + h.id).value), date = $("#od-" + h.id).value || todayISO();
+    if (shares <= 0 || avg <= 0) { toast("Enter how many shares and the average price you paid"); return; }
+    h.buys = h.buys.filter(b => !b.opening);
+    h.buys.push({ id: uid(), date, amount: +(shares * avg).toFixed(2), price: avg, opening: true, fromCash: false });
+    if (!num(h.currentPrice)) { h.currentPrice = avg; h.priceDate = date; }
+    save(); render(); toast((h.short || h.name) + ": starting holding saved");
+  } else if (f.dataset.priceform) {
+    const h = state.sp.holdings.find(h => h.id === f.dataset.priceform); if (!h) return;
+    h.currentPrice = num($("#hp-" + h.id).value); h.priceDate = $("#hd-" + h.id).value || todayISO();
+    save(); render(); toast((h.short || h.name) + " price updated");
+  } else if (f.id === "holdAdd") {
+    const name = $("#nhName").value.trim(); if (!name) { $("#nhName").focus(); return; }
+    const n = state.sp.holdings.length;
+    const h = { id: "h" + uid(), name, short: $("#nhShort").value.trim(), color: HOLD_PALETTE[n % HOLD_PALETTE.length], buys: [], currentPrice: 0, priceDate: todayISO() };
+    state.sp.holdings.push(h); ui.hold = h.id;
+    save(); render(); toast("Added " + name);
+  } else if (f.id === "giftForm") {
+    const name = $("#gName").value.trim(); if (!name) return;
+    const type = $("#gType").value;
+    const date = type === "christmas" ? new Date().getFullYear() + "-12-25" : ($("#gDate").value || todayISO());
+    state.gifts.push({ id: uid(), name, type, date, budget: num($("#gBudget").value), spent: 0, bought: "" });
+    save(); render(); toast("Added " + name);
+  }
+});
+let confirmBtn = null, confirmText = "";
+function confirmFirst(btn) {
+  if (confirmBtn === btn) { confirmBtn = null; return true; }
+  if (confirmBtn) { confirmBtn.textContent = confirmText; confirmBtn.classList.remove("confirm"); }
+  confirmBtn = btn; confirmText = btn.textContent; btn.textContent = btn.classList.contains("x") ? "Remove?" : "Tap again to delete"; btn.classList.add("confirm");
+  setTimeout(() => { if (confirmBtn === btn) { btn.textContent = confirmText; btn.classList.remove("confirm"); confirmBtn = null; } }, 3000);
+  return false;
+}
+app.addEventListener("click", e => {
+  const b = e.target.closest("button, [data-go]"); if (!b) return;
+  if (b.dataset.go) { location.hash = b.dataset.go; return; }
+  if (b.dataset.mnav) { ui.month = shiftMonth(ui.month, Number(b.dataset.mnav)); render(); return; }
+  if (b.dataset.years) { state.forecast.years = Number(b.dataset.years); save(); render(); return; }
+  if (b.dataset.delcat) { if (!confirmFirst(b)) return; state.categories = state.categories.filter(c => c.id !== b.dataset.delcat); save(); render(); return; }
+  if (b.dataset.hold) { ui.hold = b.dataset.hold; render(); return; }
+  if (b.dataset.clearopen) { if (!confirmFirst(b)) return; const h = state.sp.holdings.find(h => h.id === b.dataset.clearopen); if (h) h.buys = h.buys.filter(x => !x.opening); save(); render(); return; }
+  if (b.dataset.delbuy) { if (!confirmFirst(b)) return; const [hid, bid] = b.dataset.delbuy.split("|"); const h = state.sp.holdings.find(h => h.id === hid); if (h) h.buys = h.buys.filter(x => x.id !== bid); save(); render(); return; }
+  if (b.dataset.delhold) { if (!confirmFirst(b)) return; state.sp.holdings = state.sp.holdings.filter(h => h.id !== b.dataset.delhold); save(); render(); return; }
+  if (b.dataset.repeat) {
+    const h = state.sp.holdings.find(h => h.id === b.dataset.repeat); if (!h) return;
+    const st = holdStats(h); const last = st.buys[st.buys.length - 1]; if (!last) return;
+    const date = nextBuyDate(last);
+    h.buys.push({ id: uid(), date, amount: num(last.amount), price: num(last.price), fromCash: !!last.fromCash });
+    if (last.fromCash) setCash(latestAt(state.sp.cash.history, todayISO()) - num(last.amount));
+    ui.hold = h.id;
+    save(); render(); toast((h.short || h.name) + " buy repeated for " + shortDate(date));
+    return;
+  }
+  if (b.dataset.delgift) { if (!confirmFirst(b)) return; state.gifts = state.gifts.filter(x => x.id !== b.dataset.delgift); save(); render(); return; }
+  if (b.dataset.delpot) { if (!confirmFirst(b)) return; state.pots = state.pots.filter(x => x.id !== b.dataset.delpot); save(); render(); return; }
+  if (b.dataset.delhist) { if (!confirmFirst(b)) return; const [id, date] = b.dataset.delhist.split("|"); const p = state.pots.find(p => p.id === id); if (p) p.history = p.history.filter(x => x.date !== date); save(); render(); return; }
+  const act = b.dataset.act;
+  if (act === "clear-example") {
+    if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Tap again to clear everything"; b.classList.add("danger"); return; }
+    state = blankState(); ui.month = monthKey(new Date()); save(); render(); toast("Cleared. Start adding your own numbers");
+  } else if (act === "copy-bills") {
+    const prev = state.months[shiftMonth(ui.month, -1)]; if (!prev) return;
+    const m = ensureMonth(ui.month); let n = 0;
+    state.categories.filter(c => c.fixed).forEach(c => { if (num(prev.spend[c.id]) && !num(m.spend[c.id])) { m.spend[c.id] = num(prev.spend[c.id]); n++; } });
+    if (!num(m.income.base) && num(prev.income.base)) m.income.base = num(prev.income.base);
+    save(); render(); toast(n ? "Copied " + n + " bills and base pay" : "Nothing new to copy");
+  } else if (act === "live-all") {
+    liveUpdate(state.sp.holdings.filter(h => (h.ticker || "").trim()));
+  }
+  if (b.dataset.live) { const h = state.sp.holdings.find(h => h.id === b.dataset.live); if (h) liveUpdate([h]); }
+});
+
+/* ---------- encryption (AES-GCM, key from the household passphrase) ---------- */
+const te = new TextEncoder(), td = new TextDecoder();
+function toB64(bytes) { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+function fromB64(str) { const bin = atob(str); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+const keyCache = new Map();
+async function deriveKey(pass, salt) {
+  const ck = pass + "|" + salt; if (keyCache.has(ck)) return keyCache.get(ck);
+  const base = await crypto.subtle.importKey("raw", te.encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: fromB64(salt), iterations: 310000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  keyCache.set(ck, key); return key;
+}
+async function encryptJSON(obj, pass, salt) {
+  salt = salt || toB64(crypto.getRandomValues(new Uint8Array(16)));
+  const key = await deriveKey(pass, salt), iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, te.encode(JSON.stringify(obj)));
+  return { v: 1, salt, iv: toB64(iv), ct: toB64(new Uint8Array(ct)) };
+}
+async function decryptJSON(box, pass) {
+  const key = await deriveKey(pass, box.salt);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(box.iv) }, key, fromB64(box.ct));
+  return JSON.parse(td.decode(pt));
+}
+
+/* ---------- GitHub storage ---------- */
+let TOKEN = "", PASS = "", CONFIG = null;
+const SHA = {}, SALT = {}, dirty = {};
+let flushTimer = null, flushing = false, pendingRender = false, tokenProblem = false;
+async function gh(path, opts = {}, token = TOKEN) {
+  return fetch("https://api.github.com" + path, { ...opts, cache: "no-store", headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+}
+async function readFile(repo, path, token) {
+  const r = await gh(`/repos/${OWNER}/${repo}/contents/${path}`, {}, token);
+  if (r.status === 404) return null;
+  if (r.status === 401) throw { code: "token" };
+  if (!r.ok) throw { code: "net", status: r.status };
+  const j = await r.json();
+  return { sha: j.sha, text: td.decode(fromB64(j.content.replace(/\n/g, ""))) };
+}
+async function writeFile(repo, path, text, sha, msg, token) {
+  const body = { message: msg, content: toB64(te.encode(text)) }; if (sha) body.sha = sha;
+  const r = await gh(`/repos/${OWNER}/${repo}/contents/${path}`, { method: "PUT", body: JSON.stringify(body) }, token);
+  if (r.status === 409 || r.status === 422) throw { code: "conflict" };
+  if (r.status === 401) throw { code: "token" };
+  if (r.status === 403 || r.status === 404) throw { code: "forbidden" };
+  if (!r.ok) throw { code: "net", status: r.status };
+  return (await r.json()).content.sha;
+}
+const personFile = id => "person-" + id + ".json";
+async function writeEnc(path, obj) {
+  const box = await encryptJSON(obj, PASS, SALT[path]); SALT[path] = box.salt;
+  const text = JSON.stringify(box);
+  try { SHA[path] = await writeFile(DATA_REPO, path, text, SHA[path], "Update " + path); }
+  catch (e) {
+    if (e.code !== "conflict") throw e;
+    const cur = await readFile(DATA_REPO, path); SHA[path] = cur ? cur.sha : undefined;   // someone saved at the same moment; ours is newer
+    SHA[path] = await writeFile(DATA_REPO, path, text, SHA[path], "Update " + path);
+  }
+}
+function cacheLocal() { if (lsGet("tw-pass")) lsSet("tw-cache", JSON.stringify({ HH, P })); }
+function save() {
+  if (ui.who === "all" || !P[ui.who]) return;
+  dirty[ui.who] = true; cacheLocal();
+  setStatus("warn", "Saving…");
+  clearTimeout(flushTimer); flushTimer = setTimeout(flushAll, 1200);
+}
+function saveHousehold() { dirty.__hh = true; cacheLocal(); setStatus("warn", "Saving…"); clearTimeout(flushTimer); flushTimer = setTimeout(flushAll, 600); }
+async function flushAll() {
+  if (flushing) { flushTimer = setTimeout(flushAll, 800); return; }
+  flushing = true;
+  try {
+    for (const id of Object.keys(dirty)) {
+      if (!dirty[id]) continue;
+      dirty[id] = false;
+      try { if (id === "__hh") await writeEnc("household.json", HH); else await writeEnc(personFile(id), P[id]); }
+      catch (e) { dirty[id] = true; throw e; }
+    }
+    setStatus("ok", "Saved and shared");
+  } catch (e) {
+    if (e.code === "token" || e.code === "forbidden") { tokenProblem = true; setStatus("warn", "Not saved: access token problem"); render(); }
+    else { setStatus("warn", "Not saved yet: retrying"); flushTimer = setTimeout(flushAll, 8000); }
+  }
+  flushing = false;
+}
+async function pull() {
+  if (!TOKEN || flushing || Object.values(dirty).some(Boolean)) return;
+  let changed = false;
+  try {
+    const hf = await readFile(DATA_REPO, "household.json");
+    if (hf && hf.sha !== SHA["household.json"]) { const box = JSON.parse(hf.text); HH = await decryptJSON(box, PASS); SALT["household.json"] = box.salt; SHA["household.json"] = hf.sha; changed = true; }
+    for (const p of HH.people) {
+      const path = personFile(p.id);
+      const f = await readFile(DATA_REPO, path);
+      if (Object.values(dirty).some(Boolean)) return;   // a local edit started while we were reading
+      if (f && f.sha !== SHA[path]) { const box = JSON.parse(f.text); P[p.id] = prepare(await decryptJSON(box, PASS)); SALT[path] = box.salt; SHA[path] = f.sha; changed = true; }
+      if (!P[p.id]) { P[p.id] = freshPerson(); changed = true; }
+    }
+    if (!flushing && !Object.values(dirty).some(Boolean)) setStatus("ok", "Up to date");
+  } catch (e) {
+    if (e.code === "token") { tokenProblem = true; setStatus("warn", "Access token problem"); changed = true; }
+    else setStatus("warn", "Offline: showing this device's copy");
+  }
+  if (changed) { cacheLocal(); safeRender(); }
+}
+function safeRender() {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.closest && a.closest("#app") && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) { pendingRender = true; return; }
+  render();
+}
+document.addEventListener("focusout", () => { if (pendingRender) setTimeout(() => { if (pendingRender) { pendingRender = false; safeRender(); } }, 50); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
+setInterval(() => { if (document.visibilityState === "visible") pull(); }, 60000);
+
+function freshPerson() { const s = blankState(); s.plan.start = monthKey(new Date()); return s; }
+async function loadConfig() {
+  for (const url of ["config.json?t=" + Date.now(), `https://raw.githubusercontent.com/${OWNER}/${SITE_REPO}/main/config.json?t=` + Date.now()]) {
+    try { const r = await fetch(url, { cache: "no-store" }); if (r.ok) { const j = await r.json(); if (j && (j.token || j.invite)) return j; } } catch (e) {}
+  }
+  return null;
+}
+
+/* ---------- whose money is on screen ---------- */
+const personName = id => ((HH.people.find(p => p.id === id) || {}).name) || "Person";
+function currentState() {
+  if (ui.who === "all") return mergeStates();
+  return P[ui.who] || blankState();
+}
+function mergeStates() {
+  const ids = HH.people.map(p => p.id).filter(id => P[id]);
+  const out = blankState();
+  out.categories = []; out.pots = []; out.gifts = []; out.months = {};
+  out.sp = { holdings: [], cash: { rate: 0, history: [] } };
+  const keyOf = n => String(n || "").trim().toLowerCase();
+  const cats = new Map();
+  ids.forEach(id => P[id].categories.forEach(c => {
+    const k = keyOf(c.name);
+    if (!cats.has(k)) { const nc = { ...c, id: "m" + cats.size }; cats.set(k, nc); out.categories.push(nc); }
+    else cats.get(k).budget = num(cats.get(k).budget) + num(c.budget);
+  }));
+  const monthKeys = new Set(); ids.forEach(id => Object.keys(P[id].months).forEach(k => monthKeys.add(k)));
+  monthKeys.forEach(k => {
+    const om = { income: { base: 0, op: 0, other: 0 }, saved: 0, spend: {}, planned: 0 };
+    ids.forEach(id => {
+      const s = P[id], m = s.months[k];
+      om.planned += m && m.planned !== undefined && m.planned !== "" && m.planned !== null ? num(m.planned) : num(s.plan.monthly);
+      if (!m) return;
+      om.income.base += num(m.income.base); om.income.op += num(m.income.op); om.income.other += num(m.income.other); om.saved += num(m.saved);
+      s.categories.forEach(c => { if (m.spend[c.id] !== undefined) { const nc = cats.get(keyOf(c.name)); om.spend[nc.id] = num(om.spend[nc.id]) + num(m.spend[c.id]); } });
+    });
+    out.months[k] = om;
+  });
+  ids.forEach(id => {
+    const who = personName(id);
+    P[id].gifts.forEach(g => out.gifts.push({ ...g, id: id + g.id, name: g.name + " (" + who + ")" }));
+    P[id].pots.forEach(p => out.pots.push({ ...p, id: id + p.id, name: p.name + " · " + who }));
+  });
+  const holds = new Map();
+  ids.forEach(id => P[id].sp.holdings.forEach(h => {
+    const k = (h.ticker || "").trim().toUpperCase() || (id + ":" + h.id);
+    if (!holds.has(k)) { const nh = { ...h, id: "j" + holds.size, buys: [...h.buys] }; holds.set(k, nh); out.sp.holdings.push(nh); }
+    else { const nh = holds.get(k); nh.buys = nh.buys.concat(h.buys); if ((h.priceDate || "") > (nh.priceDate || "") && num(h.currentPrice)) { nh.currentPrice = h.currentPrice; nh.priceDate = h.priceDate; } }
+  }));
+  const dates = new Set(); ids.forEach(id => P[id].sp.cash.history.forEach(e => dates.add(e.date)));
+  out.sp.cash.history = [...dates].sort().map(d => ({ date: d, value: ids.reduce((t, id) => t + latestAt(P[id].sp.cash.history, d), 0) }));
+  const cashNow = ids.map(id => latestAt(P[id].sp.cash.history, todayISO())), cashTot = cashNow.reduce((a, b) => a + b, 0);
+  out.sp.cash.rate = cashTot ? +ids.reduce((t, id, i) => t + cashNow[i] * num(P[id].sp.cash.rate), 0) / cashTot : 0;
+  out.sp.cash.rate = +out.sp.cash.rate.toFixed(2);
+  const starts = ids.map(id => P[id].plan.start).filter(Boolean).sort();
+  const manual = ids.every(id => P[id].plan.startValue !== "" && P[id].plan.startValue !== null && P[id].plan.startValue !== undefined);
+  out.plan = { monthly: ids.reduce((t, id) => t + num(P[id].plan.monthly), 0), start: starts[0] || monthKey(new Date()), startValue: manual ? ids.reduce((t, id) => t + num(P[id].plan.startValue), 0) : "", growth: ids.length ? ids.reduce((t, id) => t + num(P[id].plan.growth), 0) / ids.length : 4 };
+  out.goal = { name: "Household goal", target: ids.reduce((t, id) => t + num(P[id].goal.target), 0) };
+  out.forecast = { ...(P[ids[0]] || out).forecast, monthly: ids.reduce((t, id) => t + fMonthly(P[id].forecast), 0) };
+  return out;
+}
+function renderWho() {
+  const seg = $("#whoSeg"); if (!seg) return;
+  const unlocked = !!TOKEN;
+  seg.hidden = !unlocked || HH.people.length < 2; $("#tabs").hidden = !unlocked; $("#gearLink").hidden = !unlocked;
+  if (!unlocked) return;
+  seg.innerHTML = HH.people.map(p => `<button type="button" data-who="${p.id}" id="who-${p.id}" aria-pressed="${ui.who === p.id}">${esc(p.name)}</button>`).join("") +
+    `<button type="button" data-who="all" id="who-all" aria-pressed="${ui.who === "all"}">Together</button>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-who]"); if (!b) return;
+  ui.who = b.dataset.who; lsSet("tw-who", ui.who); ui.live = {}; render();
+});
+
+/* ---------- live prices: prices.json is refreshed by a GitHub job every 30 minutes ---------- */
+let PRICES = null, liveBusy = false;
+async function loadPrices() {
+  const f = await readFile(SITE_REPO, "prices.json");
+  PRICES = f ? JSON.parse(f.text) : { quotes: {} };
+  return PRICES;
+}
+async function addTicker(sym) {
+  const f = await readFile(SITE_REPO, "tickers.json");
+  const list = f ? JSON.parse(f.text) : [];
+  if (list.map(t => t.toUpperCase()).includes(sym.toUpperCase())) return;
+  list.push(sym);
+  await writeFile(SITE_REPO, "tickers.json", JSON.stringify(list, null, 2) + "\n", f && f.sha, "Add " + sym + " to price list");
+}
+function quoteTime(q) { try { const d = new Date(q.time); return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
+async function liveUpdate(list) {
+  if (liveBusy || !list.length || ui.who === "all") return;
+  liveBusy = true;
+  list.forEach(h => { ui.live[h.id] = { busy: true, msg: "Fetching…" }; });
+  render();
+  let changed = false;
+  try {
+    await loadPrices();
+    for (const h of list) {
+      const sym = (h.ticker || "").trim();
+      if (!sym) { ui.live[h.id] = { ok: false, msg: "Add a Yahoo ticker for this one first (under Name and delete)." }; continue; }
+      const q = PRICES.quotes && PRICES.quotes[sym.toUpperCase()];
+      if (!q) {
+        try { await addTicker(sym); ui.live[h.id] = { ok: false, msg: sym + " has been added to the price list. Its price should be ready within a few minutes: press again then." }; }
+        catch (e) { ui.live[h.id] = { ok: false, msg: "Couldn't add " + sym + " to the price list. Check the ticker." }; }
+        continue;
+      }
+      h.currentPrice = q.price; h.priceDate = todayISO(); changed = true;
+      ui.live[h.id] = { ok: true, msg: "Live: " + gbp(q.price) + (q.currency === "GBp" ? " (" + Number(q.raw).toLocaleString("en-GB") + "p)" : "") + " · Yahoo, " + quoteTime(q) };
+    }
+  } catch (e) {
+    list.forEach(h => { ui.live[h.id] = { ok: false, msg: e.code === "token" ? "Access token problem: see Settings." : "Couldn't load prices just now. Try again, or type the price in." }; });
+  }
+  liveBusy = false;
+  if (changed) save();
+  render();
+}
+
+/* ---------- lock screen and first-time setup ---------- */
+function gateHTML(mode, err) {
+  const errHtml = err ? `<p class="neg" role="alert" style="margin:0">${esc(err)}</p>` : "";
+  if (mode === "unlock") return `<div class="gate card stack">
+    <h2>Unlock</h2>
+    <p class="sub">Type your password. It unlocks your numbers on this device only.</p>
+    <form id="unlockForm" class="stack">
+      <label class="f">Password<input type="password" id="gPass" autocomplete="current-password" required autofocus></label>
+      <label class="check"><input type="checkbox" id="gRemember" checked> Remember on this device</label>
+      ${errHtml}
+      <button class="primary" type="submit" id="btnUnlock">Unlock</button>
+    </form>
+    <p class="hint">Only tick "Remember" on your own phone or computer.</p>
+  </div>`;
+  if (mode === "loading") return `<div class="gate card"><p class="sub">${esc(err || "Loading…")}</p></div>`;
+  if (mode === "claim") return `<div class="gate card stack">
+    <h2>Create your login</h2>
+    <p class="sub">Welcome. Type the invite code you were given, then choose your own password. Only you will know it.</p>
+    <form id="claimForm" class="stack">
+      <label class="f">Your name<input id="cName" required maxlength="20" placeholder="e.g. Sam"></label>
+      <label class="f">Invite code<input type="password" id="cInvite" autocomplete="off" required></label>
+      <label class="f">Choose a password (at least 8 characters)<input type="password" id="cPass" autocomplete="new-password" required minlength="8"></label>
+      <label class="f">Type it again<input type="password" id="cPass2" autocomplete="new-password" required minlength="8"></label>
+      <label class="check"><input type="checkbox" id="cRemember" checked> Remember on this device</label>
+      ${errHtml}
+      <button class="primary" type="submit" id="btnClaim">Create my login</button>
+    </form>
+    <p class="hint">Your numbers are locked with your password before they leave this device. Nobody else can read them, so if you forget the password the data can't be recovered. Write it down somewhere safe.</p>
+  </div>`;
+  if (mode === "invited") return `<div class="gate card stack">
+    <h2>Invite ready</h2>
+    <p class="sub">Send your mate this page's web address and the invite code you chose. When they open it, they'll pick their own password.</p>
+  </div>`;
+  return `<div class="gate card stack">
+    <h2>Set up the tracker</h2>
+    <p class="sub">One-time setup by the owner. Paste the GitHub access token, then choose an invite code to give your mate. They use it once to create their own password.</p>
+    <form id="setupForm" class="stack">
+      <label class="f">GitHub access token<input type="password" id="sToken" autocomplete="off" required placeholder="github_pat_…"></label>
+      <label class="f">Invite code (at least 6 characters)<input type="password" id="sInvite" autocomplete="off" required minlength="6"></label>
+      <label class="f">Type it again<input type="password" id="sInvite2" autocomplete="off" required minlength="6"></label>
+      ${errHtml}
+      <button class="primary" type="submit" id="btnSetup">Create invite</button>
+    </form>
+  </div>`;
+}
+function showGate(mode, err) { TOKEN = ""; renderWho(); $("#app").innerHTML = gateHTML(mode, err); }
+async function unlock(pass, remember) {
+  const token = await decryptJSON(CONFIG.token, pass);   // throws on a wrong passphrase
+  PASS = pass; TOKEN = token;
+  if (remember) lsSet("tw-pass", pass); else lsSet("tw-pass", null);
+  try { const c = JSON.parse(lsGet("tw-cache") || "null"); if (c && c.HH && remember) { HH = c.HH; P = c.P || {}; Object.keys(P).forEach(id => P[id] = prepare(P[id])); } } catch (e) {}
+  if (HH.people.length) { if (!ui.who || (ui.who !== "all" && !P[ui.who])) ui.who = HH.people[0].id; renderWho(); render(); }
+  await pull();
+  if (!HH.people.length) { showGate("loading", "Couldn't load the household data. Check your connection and reload."); return; }
+  if (!ui.who || (ui.who !== "all" && !P[ui.who])) ui.who = HH.people[0].id;
+  renderWho(); render();
+}
+document.addEventListener("submit", async e => {
+  const f = e.target;
+  if (f.id === "unlockForm") {
+    e.preventDefault();
+    const btn = $("#btnUnlock"); btn.disabled = true; btn.textContent = "Unlocking…";
+    try { await unlock($("#gPass").value, $("#gRemember").checked); }
+    catch (err) { showGate("unlock", err && err.code ? "Couldn't reach GitHub. Check your connection." : "That password didn't work. Try again."); }
+  }
+  if (f.id === "setupForm") {
+    e.preventDefault();
+    const token = $("#sToken").value.trim(), inv = $("#sInvite").value, inv2 = $("#sInvite2").value;
+    if (inv !== inv2) { showGate("setup", "The two invite codes don't match."); return; }
+    const btn = $("#btnSetup"); btn.disabled = true; btn.textContent = "Setting up…";
+    try {
+      const cur = await readFile(SITE_REPO, "config.json", token);
+      if (cur) { showGate("setup", "This tracker is already set up. Reload the page."); return; }
+      const cfg = { v: 1, owner: OWNER, dataRepo: DATA_REPO, invite: await encryptJSON(token, inv) };
+      await writeFile(SITE_REPO, "config.json", JSON.stringify(cfg, null, 2) + "\n", undefined, "Create invite", token);
+      showGate("invited");
+    } catch (err) {
+      const msg = err && err.code === "token" ? "GitHub didn't accept that token. Check you copied all of it." :
+        err && err.code === "forbidden" ? "The token can't write to the trackerwhacker repo. Give it Contents: Read and write on trackerwhacker." :
+        "Setup didn't finish. Check your connection and the token, then try again.";
+      showGate("setup", msg);
+    }
+  }
+  if (f.id === "claimForm") {
+    e.preventDefault();
+    const name = $("#cName").value.trim(), inv = $("#cInvite").value, pass = $("#cPass").value, pass2 = $("#cPass2").value, remember = $("#cRemember").checked;
+    if (pass !== pass2) { showGate("claim", "The two passwords don't match."); return; }
+    if (pass.length < 8) { showGate("claim", "Use at least 8 characters for your password."); return; }
+    const btn = $("#btnClaim"); btn.disabled = true; btn.textContent = "Creating…";
+    let token;
+    try { token = await decryptJSON(CONFIG.invite, inv); }
+    catch (err) { showGate("claim", "That invite code didn't work. Check it with whoever sent you the link."); return; }
+    try {
+      PASS = pass; TOKEN = token;
+      HH = { people: [{ id: "a", name: name || "Me" }] };
+      P = { a: freshPerson() };
+      await writeEnc("household.json", HH);
+      await writeEnc(personFile("a"), P.a);
+      const cur = await readFile(SITE_REPO, "config.json", token);
+      CONFIG = { v: 1, owner: OWNER, dataRepo: DATA_REPO, token: await encryptJSON(token, pass) };
+      await writeFile(SITE_REPO, "config.json", JSON.stringify(CONFIG, null, 2) + "\n", cur && cur.sha, "Create login", token);
+      if (remember) lsSet("tw-pass", pass);
+      ui.who = "a"; lsSet("tw-who", "a"); cacheLocal();
+      renderWho(); location.hash = "overview"; render(); toast("You're in. Your password unlocks this tracker from now on.");
+    } catch (err) {
+      TOKEN = ""; PASS = "";
+      showGate("claim", err && (err.code === "token" || err.code === "forbidden") ? "The tracker's access token isn't working. Ask whoever sent you the link to check it." : "Couldn't finish. Check your connection and try again.");
+    }
+  }
+}, true);
+
+/* ---------- settings ---------- */
+function viewSettings() {
+  const updated = PRICES && PRICES.updated ? new Date(PRICES.updated).toLocaleString("en-GB") : "not checked yet";
+  return `<div class="view-head"><div><h2>Settings</h2><p class="sub">Your name, this device, backups and the access token.</p></div></div>
+  <div class="grid g2">
+    <div class="card stack"><h3>Your name</h3>
+      ${HH.people.map(p => `<label class="f">Name<input id="pname-${p.id}" data-pname="${p.id}" value="${esc(p.name)}" maxlength="20"></label>`).join("")}
+      
+    </div>
+    <div class="card stack"><h3>This device</h3>
+      <p class="hint" style="margin:0">${lsGet("tw-pass") ? "This device remembers your password." : "This device asks for your password each visit."}</p>
+      <div><button data-act="lock" id="btnLock">Lock and forget on this device</button></div>
+      <p class="hint" style="margin:0">Use this on a shared or borrowed device when you're done.</p>
+    </div>
+    <div class="card stack"><h3>Backups</h3>
+      <div class="row"><button data-act="backup" id="btnBackup">Download backup</button>
+      <label class="btn" for="restoreFile" style="flex:0 0 auto">Restore from backup</label><input type="file" id="restoreFile" accept="application/json,.json" hidden></div>
+      <p class="hint" style="margin:0">The backup file is not locked with your password, so keep it somewhere private.</p>
+    </div>
+    <div class="card stack"><h3>Access token</h3>
+      ${tokenProblem ? '<p class="neg" style="margin:0">GitHub stopped accepting the current token (it may have expired). Make a new one with the same settings and paste it here.</p>' : '<p class="hint" style="margin:0">Replace it when it expires. GitHub emails you a week before.</p>'}
+      <form id="tokenForm" class="row">
+        <label class="f">New access token<input type="password" id="newToken" autocomplete="off" placeholder="github_pat_…"></label>
+        <button class="primary" type="submit" id="btnToken">Replace</button>
+      </form>
+    </div>
+    <div class="card stack span2"><h3>Live prices</h3>
+      <p class="hint" style="margin:0">GitHub fetches prices from Yahoo Finance every 30 minutes on weekdays, 7am–6pm UK time. Last fetched: <b>${esc(updated)}</b>.</p>
+      <div><button data-act="check-prices" id="btnCheckPrices">Check now</button></div>
+    </div>
+  </div>`;
+}
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.pname) { const p = HH.people.find(p => p.id === t.dataset.pname); if (p) { p.name = t.value.trim() || p.name; saveHousehold(); renderWho(); } }
+  if (t.id === "restoreFile" && t.files && t.files[0]) {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const j = JSON.parse(r.result);
+        if (!j.HH || !j.P) throw new Error("bad");
+        HH = j.HH; P = {}; Object.keys(j.P).forEach(id => P[id] = prepare(j.P[id]));
+        dirty.__hh = true; HH.people.forEach(p => dirty[p.id] = true);
+        if (!P[ui.who] && ui.who !== "all") ui.who = HH.people[0].id;
+        flushAll(); renderWho(); render(); toast("Backup restored");
+      } catch (err) { toast("That file isn't a tracker backup"); }
+    };
+    r.readAsText(t.files[0]);
+  }
+});
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "lock") { lsSet("tw-pass", null); lsSet("tw-cache", null); location.reload(); }
+  if (act === "backup") {
+    const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), HH, P }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "trackerwhacker-backup-" + todayISO() + ".json";
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  if (act === "check-prices") { try { await loadPrices(); render(); toast("Prices checked"); } catch (err) { toast("Couldn't reach GitHub"); } }
+});
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "tokenForm") return;
+  e.preventDefault();
+  const token = $("#newToken").value.trim(); if (!token) return;
+  try {
+    await readFile(DATA_REPO, "household.json", token);
+    CONFIG = { ...CONFIG, token: await encryptJSON(token, PASS) };
+    const cur = await readFile(SITE_REPO, "config.json", token);
+    await writeFile(SITE_REPO, "config.json", JSON.stringify(CONFIG, null, 2) + "\n", cur && cur.sha, "Replace access token", token);
+    TOKEN = token; tokenProblem = false; render(); toast("Access token replaced");
+  } catch (err) { toast(err && err.code === "token" ? "GitHub didn't accept that token" : "Couldn't save the new token. Check its permissions."); }
+}, true);
+
+/* ---------- start ---------- */
+(async function boot() {
+  renderWho();
+  showGate("loading", "Loading…");
+  CONFIG = await loadConfig();
+  if (!CONFIG) { showGate("setup"); return; }
+  if (!CONFIG.token) { showGate("claim"); return; }
+  const remembered = lsGet("tw-pass");
+  if (remembered) {
+    try { await unlock(remembered, true); loadPrices().catch(() => {}); return; }
+    catch (e) { lsSet("tw-pass", null); }
+  }
+  showGate("unlock");
+})();
+window.addEventListener("hashchange", () => { if (TOKEN) route(); });
+})();
+</script>
+</body>
+</html>
