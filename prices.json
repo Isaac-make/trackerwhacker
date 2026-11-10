@@ -1,18 +1,18 @@
 {
-  "updated": "2026-11-10T00:48:48.429Z",
+  "updated": "2026-11-10T15:25:13.431Z",
   "quotes": {
     "VUSA.L": {
-      "price": 106.257,
-      "raw": 106.257,
+      "price": 106.895,
+      "raw": 106.895,
       "currency": "GBP",
-      "time": "2026-11-09T16:35:12.000Z",
+      "time": "2026-11-10T15:10:05.000Z",
       "name": "Vanguard S&P 500 UCITS ETF"
     },
     "SGLN.L": {
-      "price": 59.54,
-      "raw": 5954,
+      "price": 58.677,
+      "raw": 5867.699,
       "currency": "GBp",
-      "time": "2026-11-09T16:35:09.000Z",
+      "time": "2026-11-10T15:09:19.000Z",
       "name": "iShares Physical Gold ETC"
     }
   }
