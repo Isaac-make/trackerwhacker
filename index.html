@@ -589,6 +589,7 @@ function viewMonth() {
       <div class="card"><h3>Spending split</h3>${sp ? '<div class="chart-box short"><canvas id="cMonthPie"></canvas></div>' : '<div class="empty">Fill in what you spent and the chart appears here.</div>'}</div>
     </div>
     <div class="card"><h3>Money out</h3>
+      ${payLogHTML(k, m)}
       <div class="cat-head"><span></span><span>Category</span><span>Spent</span><span>Monthly limit</span><span></span></div>
       <div class="cat-list" style="margin-top:8px">${rows}</div>
       <form id="addCat" class="row" style="margin-top:16px; border-top:1px solid var(--line); padding-top:14px">
@@ -600,10 +601,59 @@ function viewMonth() {
     </div>
   </div>`;
 }
+function payLogHTML(k, m) {
+  const cats = state.categories.filter(c => !c.linked);
+  if (!cats.length) return "";
+  if (!cats.find(c => c.id === ui.payCat)) ui.payCat = cats[0].id;
+  const list = (m.payments || []).slice().reverse().sort((a, b) => b.date.localeCompare(a.date));
+  const catName = id => { const c = state.categories.find(c => c.id === id); return c ? c.name : "Removed category"; };
+  const rows = list.map(x => `<tr><td>${shortDate(x.date)}</td><td>${esc(catName(x.cat))}</td><td>${esc(x.note || "")}</td><td class="r">${gbp(num(x.amount))}</td><td class="r" style="width:30px"><button class="x" data-delpay="${x.id}" id="dp-${x.id}" aria-label="Delete payment">×</button></td></tr>`).join("");
+  return `<form id="payForm" class="stack" style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:700">Log a payment</div>
+        <div class="row">
+          <label class="f">Category<select id="payCat">${cats.map(c => `<option value="${c.id}"${c.id === ui.payCat ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
+          <label class="f" style="flex:0 1 130px">Amount<span class="money"><input id="payAmt" inputmode="decimal" placeholder="0.00" required></span></label>
+        </div>
+        <div class="row" style="align-items:flex-end">
+          <label class="f">What for (optional)<input id="payNote" maxlength="40" placeholder="e.g. Tesco, fuel, Netflix"></label>
+          <button class="primary" type="submit" id="btnPay">Add payment</button>
+        </div>
+        <p class="hint" style="margin:0">Each payment is added onto that category's total for ${monthLabel(k, true)}, so you never have to add it up yourself.</p>
+      </form>
+      ${list.length ? `<details class="more" data-pot-details="paylog"${ui.open.has("paylog") ? " open" : ""} style="margin-bottom:14px"><summary>Payments logged this month (${list.length})</summary>
+        <div class="tbl-wrap scroll-y"><table><thead><tr><th>Date</th><th>Category</th><th>What for</th><th class="r">Amount</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></details>` : ""}`;
+}
 function drawMonth() {
   const cats = state.categories.map((c, i) => ({ c, v: catSpend(c, ui.month), col: catColor(c, i) })).filter(x => x.v > 0);
   pieChart("cMonthPie", cats.map(x => x.c.name), cats.map(x => x.v), cats.map(x => x.col), "52%");
 }
+
+document.addEventListener("submit", e => {
+  if (e.target.id !== "payForm") return;
+  e.preventDefault();
+  const cat = $("#payCat").value, amt = num($("#payAmt").value), note = $("#payNote").value.trim();
+  if (!(amt > 0)) { toast("Type an amount first"); return; }
+  const m = ensureMonth(ui.month);
+  m.payments = m.payments || [];
+  const date = ui.month === monthKey(new Date()) ? todayISO() : ui.month + "-01";
+  m.payments.push({ id: uid(), date, cat, amount: +amt.toFixed(2), note });
+  m.spend[cat] = +(num(m.spend[cat]) + amt).toFixed(2);
+  ui.payCat = cat;
+  save(); render();
+  const c = state.categories.find(c => c.id === cat);
+  toast(gbp(amt) + " added to " + (c ? c.name : "spending"));
+  const box = $("#payAmt"); if (box) box.focus();
+}, true);
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-delpay]"); if (!b) return;
+  const m = ensureMonth(ui.month);
+  const x = (m.payments || []).find(x => x.id === b.dataset.delpay); if (!x) return;
+  m.payments = m.payments.filter(y => y !== x);
+  m.spend[x.cat] = Math.max(0, +(num(m.spend[x.cat]) - num(x.amount)).toFixed(2));
+  ui.open.add("paylog");
+  save(); render(); toast("Payment removed");
+});
+document.addEventListener("change", e => { if (e.target.id === "payCat") ui.payCat = e.target.value; });
 
 /* ----- Savings & Bonds ----- */
 function potCard(p, i) {
